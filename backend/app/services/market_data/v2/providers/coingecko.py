@@ -16,6 +16,24 @@ from app.services.market_data.v2.contracts import (
 from app.services.market_data.v2.normalization import normalize_asset_search, normalize_price_history, normalize_quote
 
 
+COINGECKO_SYMBOL_IDS = {
+    "ADA": ("cardano",),
+    "BNB": ("binancecoin",),
+    "BTC": ("bitcoin",),
+    "DOGE": ("dogecoin",),
+    "ETH": ("ethereum",),
+    "FET": ("fetch-ai", "artificial-superintelligence-alliance"),
+    "FLR": ("flare-networks", "flare"),
+    "JASMY": ("jasmycoin",),
+    "SHIB": ("shiba-inu",),
+    "SOL": ("solana",),
+    "USDC": ("usd-coin",),
+    "USDT": ("tether",),
+    "VET": ("vechain",),
+    "XRP": ("ripple",),
+}
+
+
 class CoinGeckoProviderV2:
     name = "coingecko"
     priority = 55
@@ -40,23 +58,29 @@ class CoinGeckoProviderV2:
         raise MarketDataProviderError(f"Tipo de dado nao suportado pelo CoinGecko: {data_type}")
 
     def _quote(self, request: MarketDataRequest) -> NormalizedMarketData:
-        symbol = request.normalized_symbol.lower()
+        coin_ids = self._coin_ids(request)
         currency = (request.currency or "brl").lower()
         data = self._get(
             "simple/price",
             {
-                "symbols": symbol,
+                "ids": ",".join(coin_ids),
                 "vs_currencies": currency,
                 "include_market_cap": "true",
                 "include_24hr_change": "true",
                 "include_last_updated_at": "true",
-                "include_tokens": "all",
             },
         )
-        row = data.get(symbol) or {}
+        selected_coin_id = ""
+        row = {}
+        for coin_id in coin_ids:
+            candidate = data.get(coin_id) or {}
+            if candidate.get(currency):
+                selected_coin_id = coin_id
+                row = candidate
+                break
         price = row.get(currency)
         if not price:
-            raise MarketDataProviderError(f"CoinGecko sem preco para {symbol}")
+            raise MarketDataProviderError(f"CoinGecko sem preco para {request.normalized_symbol}")
         return normalize_quote(
             self.name,
             request,
@@ -65,7 +89,7 @@ class CoinGeckoProviderV2:
             marketCap=row.get(f"{currency}_market_cap"),
             percentChange24h=row.get(f"{currency}_24h_change"),
             lastUpdatedAt=row.get("last_updated_at"),
-            raw=row,
+            raw={**row, "provider_id": selected_coin_id},
         )
 
     def _search(self, request: MarketDataRequest) -> NormalizedMarketData:
@@ -87,7 +111,7 @@ class CoinGeckoProviderV2:
         return normalize_asset_search(self.name, request, results)
 
     def _price_history(self, request: MarketDataRequest) -> NormalizedMarketData:
-        coin_id = self._coin_id(request)
+        coin_id = self._coin_ids(request)[0]
         currency = (request.currency or "brl").lower()
         if request.start_date:
             start_dt = datetime.combine(request.start_date, time.min, tzinfo=timezone.utc)
@@ -114,11 +138,16 @@ class CoinGeckoProviderV2:
             prices.append({"date": day, "close": row[1], "currency": currency.upper(), "source": self.name})
         return normalize_price_history(self.name, request, prices).with_warning(f"provider_id:{coin_id}")
 
-    def _coin_id(self, request: MarketDataRequest) -> str:
+    def _coin_ids(self, request: MarketDataRequest) -> list[str]:
         symbol = request.normalized_symbol.lower()
+        upper_symbol = request.normalized_symbol.upper()
         provider_symbol = (request.provider_symbol or "").strip().lower()
         if provider_symbol and provider_symbol != symbol and " " not in provider_symbol:
-            return provider_symbol
+            if provider_symbol.upper() in COINGECKO_SYMBOL_IDS:
+                return list(COINGECKO_SYMBOL_IDS[provider_symbol.upper()])
+            return [provider_symbol]
+        if upper_symbol in COINGECKO_SYMBOL_IDS:
+            return list(COINGECKO_SYMBOL_IDS[upper_symbol])
         data = self._get("search", {"query": symbol})
         rows = data.get("coins") or []
         exact = [
@@ -126,10 +155,10 @@ class CoinGeckoProviderV2:
             for row in rows
             if isinstance(row, dict) and str(row.get("symbol", "")).lower() == symbol and row.get("id")
         ]
-        selected = exact[0] if exact else next((row for row in rows if isinstance(row, dict) and row.get("id")), None)
-        if not selected:
+        selected_rows = exact or [row for row in rows if isinstance(row, dict) and row.get("id")]
+        if not selected_rows:
             raise MarketDataProviderError(f"CoinGecko sem id para {symbol}")
-        return str(selected["id"])
+        return [str(row["id"]) for row in selected_rows[:3]]
 
     def _get(self, path: str, params: dict) -> dict:
         headers = {"Accept": "application/json"}

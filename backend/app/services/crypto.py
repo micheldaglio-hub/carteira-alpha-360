@@ -123,36 +123,80 @@ def sync_user_crypto(db: Session, user_id: str) -> dict:
         if sync_crypto_asset(db, asset):
             updated.append(asset.ticker)
         else:
-            if restore_suspicious_crypto_mock_price(asset, position):
+            if restore_suspicious_crypto_mock_price(db, user_id, asset, position):
                 repaired.append(asset.ticker)
             skipped.append(asset.ticker)
     db.commit()
     return {"updated": updated, "skipped": skipped, "repaired": repaired}
 
 
-def restore_suspicious_crypto_mock_price(asset: Asset, position: dict) -> bool:
+def restore_suspicious_crypto_mock_price(db: Session, user_id: str, asset: Asset, position: dict) -> bool:
     """Undo the generic mock quote that can distort crypto portfolios.
 
     The mock provider returns 25.0 for unknown symbols. That is useful for demo
     screens, but it must never become the persisted market price of a real
-    crypto position. When live providers fail, keep the user's average cost as a
-    conservative fallback instead of showing a fantasy profit.
+    crypto position. When live providers fail, rebuild the user's average cost
+    from the transaction ledger, preserving tiny prices such as SHIB/FLR that
+    would be rounded to zero in dashboard payloads.
     """
 
     current_price = float(asset.last_price or 0)
-    average_price = float(position.get("averagePrice") or 0)
-    if average_price <= 0:
-        return False
     if asset.ticker.upper() in {"BTC", "ETH", "SOL"}:
         return False
     if not (24.99 <= current_price <= 25.01):
         return False
-    restored = Decimal(str(average_price))
+    restored = _average_crypto_transaction_price(db, user_id, asset.id)
+    if restored is None:
+        restored = _decimal_or_none(position.get("averagePrice"))
+    if restored is None or restored <= 0:
+        return False
     asset.last_price = restored
     if asset.snapshot is None:
-        return False
-    asset.snapshot.price = restored
+        db.add(MarketSnapshot(asset_id=asset.id, price=restored, dividend_yield=0, payout=0))
+    else:
+        asset.snapshot.price = restored
     return True
+
+
+def _average_crypto_transaction_price(db: Session, user_id: str, asset_id: str) -> Decimal | None:
+    transactions = (
+        db.execute(
+            select(Transaction)
+            .where(Transaction.user_id == user_id, Transaction.asset_id == asset_id)
+            .order_by(Transaction.date.asc(), Transaction.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+    quantity = Decimal("0")
+    cost = Decimal("0")
+    for transaction in transactions:
+        tx_type = (transaction.type or "").lower()
+        tx_quantity = _decimal_or_none(transaction.quantity) or Decimal("0")
+        tx_price = _decimal_or_none(transaction.price) or Decimal("0")
+        tx_fees = _decimal_or_none(transaction.fees) or Decimal("0")
+        if tx_quantity <= 0:
+            continue
+        if tx_type in {"buy", "compra"}:
+            quantity += tx_quantity
+            cost += tx_quantity * tx_price + tx_fees
+        elif tx_type in {"sell", "venda"} and quantity > 0:
+            sold_quantity = min(tx_quantity, quantity)
+            average_cost = cost / quantity if quantity else Decimal("0")
+            quantity -= sold_quantity
+            cost -= average_cost * sold_quantity
+    if quantity <= 0 or cost <= 0:
+        return None
+    return cost / quantity
+
+
+def _decimal_or_none(value) -> Decimal | None:
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return None
 
 
 def register_crypto_transaction(db: Session, user_id: str, payload: CryptoTransactionCreate) -> dict:

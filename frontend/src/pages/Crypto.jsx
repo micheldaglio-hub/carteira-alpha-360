@@ -33,6 +33,18 @@ const categories = [
   "outro",
 ];
 
+function cryptoUnitMoney(value, code = "BRL") {
+  const numeric = Number(value || 0);
+  const abs = Math.abs(numeric);
+  const maximumFractionDigits = abs > 0 && abs < 0.01 ? 10 : abs > 0 && abs < 1 ? 6 : 2;
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: code || "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits,
+  }).format(numeric);
+}
+
 export default function Crypto({ token }) {
   const [data, setData] = useState(null);
   const [form, setForm] = useState(initialForm);
@@ -81,7 +93,12 @@ export default function Crypto({ token }) {
     setError("");
     try {
       const result = await apiFetch("/crypto/sync-market", { method: "POST", token });
-      setStatus(`Atualizacao cripto: ${result.updated?.length || 0} atualizada(s), ${result.skipped?.length || 0} sem novos dados.`);
+      const repaired = result.repaired?.length || 0;
+      setStatus(
+        `Atualização cripto: ${result.updated?.length || 0} atualizada(s), ${result.skipped?.length || 0} sem novos dados${
+          repaired ? `, ${repaired} preço(s) suspeito(s) corrigido(s)` : ""
+        }.`,
+      );
       await load();
     } catch (err) {
       setError(err.message);
@@ -91,7 +108,7 @@ export default function Crypto({ token }) {
   }
 
   async function removePosition(position) {
-    const confirmed = window.confirm(`Remover ${position.ticker} da carteira cripto? Isso limpa suas movimentacoes desse ativo.`);
+    const confirmed = window.confirm(`Remover ${position.ticker} da carteira cripto? Isso limpa suas movimentações desse ativo.`);
     if (!confirmed) return;
     setRemovingAssetId(position.assetId);
     setStatus("");
@@ -118,7 +135,7 @@ export default function Crypto({ token }) {
         </div>
         <div className="flex max-w-2xl flex-col items-start gap-3 sm:items-end">
           <p className="text-sm leading-6 text-stone-500 sm:text-right">
-            Cripto entra no patrimonio total, mas nao entra no radar de dividendos. O score considera categoria, concentracao e risco.
+            Cripto entra no patrimônio total, mas não entra no radar de dividendos. O score considera categoria, concentração e risco.
           </p>
           <button onClick={syncMarket} className="btn-secondary h-10 px-3 text-sm" disabled={syncing}>
             <RefreshCw size={16} />
@@ -131,7 +148,7 @@ export default function Crypto({ token }) {
       {status ? <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">{status}</p> : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <StatCard label="Patrimonio cripto" value={currency.format(metrics.cryptoEquity || 0)} hint="Valor atual das criptos." icon={Bitcoin} tone="amber" />
+        <StatCard label="Patrimônio cripto" value={currency.format(metrics.cryptoEquity || 0)} hint="Valor atual das criptos." icon={Bitcoin} tone="amber" />
         <StatCard label="Investido cripto" value={currency.format(metrics.cryptoInvested || 0)} hint="Capital aportado em cripto." icon={Bitcoin} tone="sky" />
         <StatCard label="Lucro/prejuizo" value={currency.format(metrics.cryptoPnl || 0)} hint={pct(metrics.cryptoPnlPct || 0)} icon={Bitcoin} tone={(metrics.cryptoPnl || 0) >= 0 ? "emerald" : "rose"} />
         <StatCard label="Peso no total" value={pct(metrics.cryptoWeightTotal || 0)} hint="Peso da cripto na carteira 360." icon={Bitcoin} tone="amber" />
@@ -162,7 +179,7 @@ export default function Crypto({ token }) {
           </select>
           <input className="field xl:col-span-2" type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} />
           <input className="field xl:col-span-2" type="number" step="0.00000001" value={form.quantity} onChange={(event) => setForm({ ...form, quantity: event.target.value })} placeholder="Quantidade" />
-          <input className="field xl:col-span-2" type="number" step="0.01" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} placeholder="Preco unitario" />
+          <input className="field xl:col-span-2" type="number" step="0.00000001" value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} placeholder="Preco unitario" />
           <input className="field xl:col-span-2" type="number" step="0.01" value={form.fees} onChange={(event) => setForm({ ...form, fees: event.target.value })} placeholder="Taxa" />
           <input className="field xl:col-span-2" value={form.exchange} onChange={(event) => setForm({ ...form, exchange: event.target.value })} placeholder="Exchange/corretora" />
           <input className="field xl:col-span-2" value={form.wallet} onChange={(event) => setForm({ ...form, wallet: event.target.value })} placeholder="Wallet opcional" />
@@ -196,8 +213,8 @@ export default function Crypto({ token }) {
                   </td>
                   <td className="px-4 py-3">{position.category}</td>
                   <td className="px-4 py-3">{position.quantity}</td>
-                  <td className="px-4 py-3">{money(position.averagePrice, position.currency)}</td>
-                  <td className="px-4 py-3">{money(position.currentPrice, position.currency)}</td>
+                  <td className="px-4 py-3">{cryptoUnitMoney(position.averagePrice, position.currency)}</td>
+                  <td className="px-4 py-3">{cryptoUnitMoney(position.currentPrice, position.currency)}</td>
                   <td className="px-4 py-3">{money(position.investedValue, position.currency)}</td>
                   <td className="px-4 py-3">{money(position.currentValue, position.currency)}</td>
                   <td className={`px-4 py-3 font-semibold ${position.pnl >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{money(position.pnl, position.currency)}</td>

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-15 - Hotfix cripto precision
+
+- Corrigida a segunda causa de distorcao em criptos de baixo valor: SHIB, FLR, JASMY e similares agora usam IDs oficiais do CoinGecko para cotacao real e o reparo anti-mock reconstrói preco medio pelo livro de transacoes, sem depender do valor arredondado da tela.
+- Ajustada a tela de Cripto para aceitar preco unitario com ate 8 casas decimais e exibir cotacoes pequenas com mais precisao, evitando que ativos fracionarios parecam `R$ 0,00` ou sejam interpretados como `R$ 25,00`.
+
 ## 2026-07-15
 
 - Corrigida a atualização de criptos para impedir que o provider mock grave preço genérico de R$ 25,00 em ativos reais quando CoinMarketCap/CoinGecko falham; o sync agora ignora mock em cripto e restaura preço médio em cotações suspeitas.
