@@ -2,6 +2,7 @@
 
 ## 2026-07-15
 
+- Corrigida a atualização de criptos para impedir que o provider mock grave preço genérico de R$ 25,00 em ativos reais quando CoinMarketCap/CoinGecko falham; o sync agora ignora mock em cripto e restaura preço médio em cotações suspeitas.
 - Evoluído o Alpha Copilot para reconhecer perguntas de aporte como `tenho 1000 reais, o que devo comprar?` e responder com plano humano de alocação usando carteira atual, Carteira Recomendada Alpha, FIIs, Global e Crypto Research Engine, sem expor códigos técnicos `S1/S2` no texto da conversa.
 - Criado `External Integration Snapshot Bridge` para o Trading Desk EV+, usando o mesmo Supabase/PostgreSQL da Carteira Alpha.
 - Criada migration aditiva `backend/alembic/versions/20260715_0020_external_integration_snapshots.py`, com rollback seguro.

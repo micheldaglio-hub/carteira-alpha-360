@@ -86,13 +86,13 @@ def sync_crypto_asset(db: Session, asset: Asset) -> bool:
             asset_class="Cripto",
             currency=currency,
         )
-        price = quote.payload.get("price")
-        currency = quote.currency or currency
+        if quote.provider != "mock":
+            price = quote.payload.get("price")
+            currency = quote.currency or currency
     except MarketDataUnavailable:
-        fallback = CoinMarketCapProvider().get_quote(asset.ticker, convert=currency)
-        if fallback is not None:
-            price = fallback.price
-            currency = fallback.currency
+        price, currency = _fallback_coinmarketcap_quote(asset.ticker, currency)
+    if not price:
+        price, currency = _fallback_coinmarketcap_quote(asset.ticker, currency)
     if not price:
         return False
     asset.currency = currency
@@ -104,10 +104,18 @@ def sync_crypto_asset(db: Session, asset: Asset) -> bool:
     return True
 
 
+def _fallback_coinmarketcap_quote(ticker: str, currency: str) -> tuple[float | None, str]:
+    fallback = CoinMarketCapProvider().get_quote(ticker, convert=currency)
+    if fallback is None:
+        return None, currency
+    return fallback.price, fallback.currency
+
+
 def sync_user_crypto(db: Session, user_id: str) -> dict:
     positions = [position for position in get_positions(db, user_id) if position["class"] == "Cripto"]
     updated: list[str] = []
     skipped: list[str] = []
+    repaired: list[str] = []
     for position in positions:
         asset = db.get(Asset, position["assetId"])
         if asset is None:
@@ -115,9 +123,36 @@ def sync_user_crypto(db: Session, user_id: str) -> dict:
         if sync_crypto_asset(db, asset):
             updated.append(asset.ticker)
         else:
+            if restore_suspicious_crypto_mock_price(asset, position):
+                repaired.append(asset.ticker)
             skipped.append(asset.ticker)
     db.commit()
-    return {"updated": updated, "skipped": skipped}
+    return {"updated": updated, "skipped": skipped, "repaired": repaired}
+
+
+def restore_suspicious_crypto_mock_price(asset: Asset, position: dict) -> bool:
+    """Undo the generic mock quote that can distort crypto portfolios.
+
+    The mock provider returns 25.0 for unknown symbols. That is useful for demo
+    screens, but it must never become the persisted market price of a real
+    crypto position. When live providers fail, keep the user's average cost as a
+    conservative fallback instead of showing a fantasy profit.
+    """
+
+    current_price = float(asset.last_price or 0)
+    average_price = float(position.get("averagePrice") or 0)
+    if average_price <= 0:
+        return False
+    if asset.ticker.upper() in {"BTC", "ETH", "SOL"}:
+        return False
+    if not (24.99 <= current_price <= 25.01):
+        return False
+    restored = Decimal(str(average_price))
+    asset.last_price = restored
+    if asset.snapshot is None:
+        return False
+    asset.snapshot.price = restored
+    return True
 
 
 def register_crypto_transaction(db: Session, user_id: str, payload: CryptoTransactionCreate) -> dict:
