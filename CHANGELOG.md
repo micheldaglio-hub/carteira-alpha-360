@@ -1,0 +1,438 @@
+# Changelog
+
+## 2026-07-15
+
+- Compactada a landing de login para caber sem scroll inicial em notebooks/desktops baixos e celular, com regras responsivas por altura de viewport.
+- Corrigido acesso LAN para celular/outros computadores: CORS local agora aceita hostname da maquina, scripts de firewall LAN foram adicionados e o inicializador passou a gerar diagnostico/URLs automaticamente.
+- Criados `INICIAR_CARTEIRA_ALPHA_REDE.bat`, `CONFIGURAR_ACESSO_REDE_ADMIN.bat`, `DIAGNOSTICAR_ACESSO_REDE.bat`, `scripts/ensure-lan-firewall.ps1`, `scripts/check-lan-access.ps1` e `docs/ACESSO_REDE_LOCAL.md`.
+- Executado polimento final da landing institucional de login 10/10.
+- Card de login reduzido em desktop, glassmorphism refinado e fundo institucional mais visivel sem trocar a imagem.
+- Marca principal ampliada, assinatura `Institutional Wealth Intelligence` adicionada e repeticao visual da marca reduzida dentro do card.
+- Headline substituida por `Construa patrimonio. Tome decisoes melhores.` com quebra intencional e maior controle tipografico.
+- Substituidos os pseudo-botoes `Dados`, `Evidencias` e `Governanca` por indicadores demonstrativos leves: teses versionadas, evidencias rastreaveis e confianca dos dados.
+- Botao principal recebeu gradiente dourado refinado, brilho discreto, hover/focus/active e animacao respeitando `prefers-reduced-motion`.
+- Adicionada meta description em `frontend/index.html` para melhorar SEO da landing.
+- Lighthouse em build de producao via `vite preview`: Performance 95, Accessibility 100, Best Practices 96, SEO 91.
+- Substituida a tela de login por uma landing institucional premium com background full-screen aprovado do Alpha 360.
+- Adicionados assets `frontend/public/assets/alpha-login-background.png` e `frontend/public/assets/alpha-login-background.webp`, com preload do WebP em `frontend/index.html`.
+- Refatorado `frontend/src/pages/Login.jsx` em componentes internos de landing: `BackgroundOverlay`, `AuthHero`, `AuthCard`, `AuthTabs`, `PasswordField`, `SecurityTrustBar` e `LegalDisclaimer`.
+- Criados estilos responsivos e acessiveis da landing em `frontend/src/styles/index.css`, com overlays, blur seletivo no formulario, microanimacoes e suporte a `prefers-reduced-motion`.
+- Atualizado teste E2E para validar fundo, headline institucional, tabs, tema, mostrar senha, manter conectado, esqueci senha, erro de credencial e login real.
+- Refinada a tela de login/cadastro com identidade premium preta/dourada, painel demonstrativo, hierarquia visual maior e layout responsivo.
+- Adicionados controles visuais de `Esqueci minha senha`, mostrar/ocultar senha, `Manter conectado`, estados de loading/sucesso/erro e melhoria de acessibilidade nos campos, sem alterar rotas ou payloads de autenticacao.
+- Atualizado o smoke test E2E para validar os novos elementos da tela de autenticacao.
+- Implementado `Notification Center / Subscriber Delivery Inbox` para a Area Premium do Assinante.
+- Criado `backend/app/distribution/inbox.py`, consolidando entregas do Distribution Engine com downloads em `premium_access_logs`.
+- Criada rota protegida `GET /api/premium/subscriber/delivery-inbox`.
+- `GET /api/premium/subscriber/home` agora inclui `deliveryInbox` no payload.
+- A tela `frontend/src/pages/PremiumSubscriber.jsx` ganhou bloco `Notification Center`, com entregas pendentes, recebidas, abertas, clicadas, baixadas e falhas.
+- Criada documentacao `docs/NOTIFICATION_CENTER.md`.
+- Ampliado `backend/tests/test_distribution_engine.py` para validar entrega no inbox e mudanca para `downloaded` apos baixar PDF.
+
+## 2026-07-14
+
+- Evoluido o `Distribution Engine` com camada de providers preparada para envio real.
+- Criado `backend/app/distribution/providers.py`, com providers `mock`, `resend` e `smtp`.
+- Criado `backend/app/distribution/templates.py`, com template premium em HTML/texto para edicoes enviadas a assinantes.
+- O Distribution Engine agora registra `configuredProvider` e `fallbackReason` quando um provider externo estiver configurado sem credenciais.
+- Atualizados `.env.example`, `.env.production.example` e `.env.supabase.example` com variaveis de Resend, SMTP e URL publica da distribuicao.
+- Ampliado `backend/tests/test_distribution_engine.py` para validar template mock e fallback seguro de Resend sem chave.
+- Implementado `Distribution Engine` para distribuicao auditavel de edicoes premium.
+- Adicionados modelos SQLAlchemy `DistributionCampaign`, `DistributionRecipient` e `DistributionEventLog` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0019_distribution_engine.py`, com rollback seguro para `20260714_0018`.
+- Criado modulo `backend/app/distribution/engine.py`, com provider `mock`, selecao de assinantes premium por entitlement ativo, campanha, destinatarios e eventos de entrega.
+- Criada API `/api/distribution` em `backend/app/routers/distribution.py`, registrada no FastAPI.
+- A tela `Research Premium` passou a exibir uma secao `Distribution Engine` para criar campanha e disparar envio mock da edicao aprovada.
+- Atualizados `.env.example`, `.env.production.example` e `.env.supabase.example` com variaveis de distribuicao.
+- Criada documentacao `docs/DISTRIBUTION_ENGINE.md`.
+- Criado teste `backend/tests/test_distribution_engine.py`, cobrindo campanha, disparo mock, destinatario, evento e API.
+- Implementado `Payment Gateway` para a Area Premium do Assinante.
+- Adicionados modelos SQLAlchemy `BillingCheckoutSession`, `BillingTransaction` e `BillingWebhookEvent` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0018_billing_payment_gateway.py`, com rollback seguro para `20260714_0017`.
+- Criado modulo `backend/app/billing/gateway.py`, com checkout, provider `mock`, webhook idempotente, transacao e ativacao de assinatura premium via Entitlements Engine.
+- Criada API `/api/billing` em `backend/app/routers/billing.py`, registrada no FastAPI.
+- A tela `Area Premium` passou a listar planos pagos e iniciar assinatura mensal/anual. Em ambiente local, o pagamento mock ativa o plano sem cartao.
+- Atualizados `.env.example`, `.env.production.example` e `.env.supabase.example` com variaveis de billing, Stripe e Mercado Pago.
+- Criada documentacao `docs/PAYMENT_GATEWAY.md` e atualizados documentos premium/roadmap.
+- Criado teste `backend/tests/test_billing_gateway.py`, cobrindo checkout mock, ativacao premium e idempotencia de webhook.
+- Iniciada a Fase A tecnica do `Alpha Premium Research` com a fundacao real do `Alpha Research Publisher`.
+- Criado pacote `backend/app/premium_research` e contratos em `backend/app/premium_research/contracts.py`.
+- Definidos estados, transicoes permitidas, estados terminais e classificacao de readiness para publicacoes premium.
+- Adicionados modelos SQLAlchemy em `backend/app/models.py` para `ResearchPublication`, `PublicationVersion`, `PublicationSection`, `PublicationAsset`, `PublicationSource`, `PublicationEvidence`, `PublicationReview`, `PublicationApproval` e `PublicationCorrection`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0008_alpha_research_publisher.py`, com rollback seguro.
+- Banco local atualizado para revision `20260714_0008`.
+- Criado teste `backend/tests/test_alpha_research_publisher_foundation.py`, cobrindo contratos, readiness, tabelas novas e persistencia basica de publicacao.
+- Atualizados `docs/ALPHA_PREMIUM_RESEARCH.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Nenhuma tela, rota publica, payload atual ou regra financeira foi alterada nesta etapa.
+- Criado `AlphaResearchPublisher` sem UI em `backend/app/premium_research/publisher.py`.
+- O Publisher passa a gerar rascunhos premium versionados usando `get_model_portfolios`, `recommendedPortfolioReport`, `recommendationGovernance` e `Data Evidence Ledger`, sem recalcular regras financeiras.
+- O rascunho premium persiste secoes editoriais, fontes internas, ativos citados, evidencias vinculadas e readiness report nas tabelas criadas pela migration `20260714_0008`.
+- Rascunhos do mesmo periodo nao sobrescrevem historico: novas execucoes geram versoes sequenciais como `v0.1`, `v0.2`.
+- Criado teste `backend/tests/test_alpha_research_publisher_service.py`, cobrindo criacao do rascunho, readiness e versionamento.
+- Criado `Thesis Engine` versionado em `backend/app/premium_research/thesis_engine.py`, para guardar a tese historica de cada ativo antes do Rating Engine e Research Committee.
+- Adicionados contratos `AssetThesisContract` e `AssetThesisVersionContract` em `backend/app/premium_research/contracts.py`.
+- Adicionados modelos SQLAlchemy `AssetThesis`, `AssetThesisVersion` e `AssetThesisEvidence` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0009_asset_thesis_engine.py`, com rollback seguro para `20260714_0008`.
+- Banco local atualizado para revision `20260714_0009`; rollback `0009 -> 0008` e upgrade `0008 -> 0009` validados.
+- `AlphaResearchPublisher` passou a chamar o Thesis Engine e gravar `thesisSync` no payload interno da versao da publicacao, sem alterar tela, rota publica ou payload legado.
+- Criado teste `backend/tests/test_asset_thesis_engine.py`, cobrindo criacao, deduplicacao, nova versao por mudanca de tese, fechamento da versao anterior e sincronizacao de multiplos ativos.
+- Atualizada documentacao `docs/THESIS_ENGINE.md`, `docs/ALPHA_PREMIUM_RESEARCH.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Criado `Rating Engine` em `backend/app/premium_research/rating_engine.py`, usando `asset_thesis_versions` como origem obrigatoria.
+- Adicionados contratos `AssetRatingContract` e `AssetRatingVersionContract` em `backend/app/premium_research/contracts.py`.
+- Adicionados modelos SQLAlchemy `AssetRating`, `AssetRatingVersion` e `AssetRatingEvidence` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0010_asset_rating_engine.py`, com rollback seguro para `20260714_0009`.
+- Banco local atualizado para revision `20260714_0010`; rollback `0010 -> 0009` e upgrade `0009 -> 0010` validados.
+- O Rating Engine calcula componentes auditaveis: tese, evidencias, risco, conviccao, confianca, qualidade de dados, governanca e adequacao.
+- `AlphaResearchPublisher` passou a chamar o Rating Engine depois do Thesis Engine, gravando `ratingSync` no payload interno da versao da publicacao.
+- Criado teste `backend/tests/test_asset_rating_engine.py`, cobrindo criacao de rating, evidencias, deduplicacao, nova versao por mudanca de tese, fechamento da versao anterior e sincronizacao de multiplos ativos.
+- Atualizada documentacao `docs/RATING_ENGINE.md`, `docs/ALPHA_PREMIUM_RESEARCH.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Criado `Research Committee` em `backend/app/premium_research/research_committee.py`, usando Thesis Engine, Rating Engine, Data Confidence, Guardian, Evidence Ledger, readiness editorial e aviso legal como gates antes de qualquer publicacao premium aprovada.
+- Adicionados contratos `CommitteeGateContract`, `CommitteeVoteContract` e `ResearchCommitteeRunContract` em `backend/app/premium_research/contracts.py`.
+- Adicionados modelos SQLAlchemy `ResearchCommitteeRun`, `ResearchCommitteeGateResult` e `ResearchCommitteeVote` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0011_research_committee.py`, com rollback seguro para `20260714_0010`.
+- Banco local atualizado para revision `20260714_0011`; rollback `0011 -> 0010` e upgrade `0010 -> 0011` validados.
+- O Research Committee registra gates, votos, bloqueios, avisos, score de aprovacao e evidencia `research_committee.approval_score` no Data Evidence Ledger.
+- `AlphaResearchPublisher` passou a chamar o Research Committee depois de Thesis, Rating, evidencias do publisher e readiness report, gravando `researchCommittee` no payload interno da versao da publicacao.
+- Criado teste `backend/tests/test_research_committee.py`, cobrindo liberacao para revisao humana, bloqueio sem rating e bloqueio por risco extremo/rating restrito.
+- Atualizada documentacao `docs/RESEARCH_COMMITTEE.md`, `docs/ALPHA_PREMIUM_RESEARCH.md`, `docs/RATING_ENGINE.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Criada API administrativa protegida `backend/app/routers/premium.py`, registrada em `app/main.py` sob `/api/premium`.
+- Novas rotas protegidas permitem criar rascunho premium, listar/detalhar publicacoes, detalhar versoes, sincronizar teses, sincronizar ratings, rodar Research Committee e consultar teses/ratings/rodadas.
+- Rotas administrativas usam `get_current_user`, preservam isolamento por usuario e registram eventos de auditoria para mutacoes.
+- Criado teste `backend/tests/test_premium_research_api.py`, cobrindo autenticacao obrigatoria, criacao de rascunho e inspecao do workflow premium via API.
+- Criada documentacao `docs/PREMIUM_RESEARCH_API.md`.
+- Adicionado fluxo humano inicial na API premium: `POST /api/premium/publications/{publication_id}/reviews` e `POST /api/premium/publications/{publication_id}/approvals`.
+- A aprovacao final `approve_publication` agora exige revisao humana aprovada e Research Committee sem bloqueios ativos.
+- Novas mutacoes premium registram auditoria em `premium_research_review_recorded` e `premium_research_approval_recorded`.
+- Criada tela administrativa inicial `frontend/src/pages/PremiumResearch.jsx`, acessivel pelo menu `Research Premium`.
+- A tela permite criar rascunho premium, selecionar versoes, consultar readiness, gates, votos do comite, sincronizar teses/ratings, rodar comite e registrar revisao/aprovacao humana.
+- Atualizado menu lateral em `frontend/src/components/Sidebar.jsx` e roteamento local em `frontend/src/App.jsx`.
+- Ampliado `backend/tests/test_premium_research_api.py` para validar bloqueio de aprovacao prematura, revisao humana e rejeicao/aprovacao final conforme gates.
+- Atualizadas documentacoes `docs/PREMIUM_RESEARCH_API.md`, `docs/ALPHA_PREMIUM_RESEARCH.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Criado `Performance Attribution Engine` em `backend/app/premium_research/performance_attribution.py` para explicar performance de edicoes premium por ativo, retorno de preco, renda estimada, contribuidores, detratores, benchmark opcional e qualidade dos dados.
+- Adicionados modelos SQLAlchemy `ResearchAttributionRun` e `ResearchAttributionAsset` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0012_performance_attribution.py`, com rollback seguro para `20260714_0011`.
+- Banco local atualizado para revision `20260714_0012`; rollback `0012 -> 0011` e upgrade `0011 -> 0012` validados.
+- Novas rotas protegidas em `/api/premium`: `POST /publications/{publication_id}/attribution/run`, `GET /attribution/runs` e `GET /attribution/runs/{run_id}`.
+- Cada rodada de attribution grava evidencias em `Data Evidence Ledger` usando dominio `premium_research_attribution`.
+- Criada documentacao `docs/PERFORMANCE_ATTRIBUTION_ENGINE.md` e atualizadas as documentacoes de API, roadmap, arquitetura, produto e mapa do sistema.
+- Ampliado `backend/tests/test_premium_research_api.py` para validar criacao, listagem e detalhamento de rodadas de Performance Attribution.
+- Criado `Publication Snapshot Engine` em `backend/app/premium_research/snapshot_engine.py` para congelar edicoes premium aprovadas com payload canonico, manifest, hashes e evidencia no Data Evidence Ledger.
+- Adicionado modelo SQLAlchemy `PublicationSnapshot` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0013_publication_snapshots.py`, com rollback seguro para `20260714_0012`.
+- Novas rotas protegidas em `/api/premium`: `POST /publications/{publication_id}/snapshots`, `GET /publications/{publication_id}/snapshots`, `GET /snapshots` e `GET /snapshots/{snapshot_id}`.
+- Snapshot final exige publicacao/versao aprovadas, revisao humana `approve` e aprovacao final `approve_publication`.
+- O motor e idempotente por `publication_version_id + snapshot_type`, evitando duplicar a mesma edicao congelada.
+- Cada snapshot registra `premium_research_snapshot.snapshot_hash` no `Data Evidence Ledger`.
+- Criada documentacao `docs/PUBLICATION_SNAPSHOT_ENGINE.md` e atualizados `docs/ALPHA_PREMIUM_RESEARCH.md`, `docs/DOCUMENTACAO_TECNICA.md` e `docs/ROADMAP.md`.
+- Criado teste `backend/tests/test_publication_snapshots.py` e ampliado `backend/tests/test_premium_research_api.py` para validar bloqueio antes da aprovacao, criacao, idempotencia, listagem e integridade do snapshot.
+- Criado `Publication Render Engine` em `backend/app/premium_research/renderer.py`, gerando HTML premium reproduzivel a partir de snapshot aprovado, sem consultar dados vivos.
+- Adicionado modelo SQLAlchemy `PublicationArtifact` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0014_publication_artifacts.py`, com rollback seguro para `20260714_0013`.
+- Novas rotas protegidas em `/api/premium`: `POST /snapshots/{snapshot_id}/render`, `GET /publications/{publication_id}/artifacts`, `GET /snapshots/{snapshot_id}/artifacts`, `GET /artifacts` e `GET /artifacts/{artifact_id}`.
+- Cada artefato registra `premium_research_artifact.artifact_hash` no `Data Evidence Ledger`.
+- Criada documentacao `docs/PUBLICATION_RENDER_ENGINE.md` e atualizados `docs/ALPHA_PREMIUM_RESEARCH.md`, `docs/PREMIUM_RESEARCH_API.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/PRODUCT.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Criado teste `backend/tests/test_publication_renderer.py` e ampliado `backend/tests/test_premium_research_api.py` para validar renderizacao, idempotencia, listagem e conteudo HTML.
+- Criado `Publication PDF Publisher` em `backend/app/premium_research/pdf_publisher.py`, gerando PDF binario a partir de artefato HTML aprovado.
+- Adicionados campos `source_artifact_id`, `binary_content`, `content_size_bytes` e `page_count` em `PublicationArtifact`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0015_publication_pdf_artifacts.py`, com rollback seguro para `20260714_0014`.
+- Adicionadas dependencias `reportlab` e `pypdf` em `backend/requirements.txt`.
+- Novas rotas protegidas em `/api/premium`: `POST /artifacts/{artifact_id}/pdf` e `GET /artifacts/{artifact_id}/download`.
+- Cada PDF registra `premium_research_pdf.pdf_hash` no `Data Evidence Ledger`.
+- Criada documentacao `docs/PUBLICATION_PDF_PUBLISHER.md` e atualizadas documentacoes de API, roadmap, arquitetura, produto e mapa do sistema.
+- Criado teste `backend/tests/test_publication_pdf_publisher.py` e ampliado `backend/tests/test_premium_research_api.py` para validar PDF binario, download, idempotencia, tamanho e contagem de paginas.
+- Criado `Premium Entitlements Engine` em `backend/app/premium_research/entitlements.py`, preparando planos, assinaturas, permissoes e logs de acesso para a vertical premium.
+- Adicionados modelos SQLAlchemy `SubscriptionPlan`, `UserSubscription`, `PremiumEntitlement` e `PremiumAccessLog` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0016_premium_entitlements.py`, com rollback seguro para `20260714_0015`.
+- Novas rotas protegidas em `/api/premium`: `POST /plans/seed`, `GET /plans`, `POST /subscriptions/grant`, `GET /subscriptions/me` e `GET /access-logs`.
+- O download `GET /api/premium/artifacts/{artifact_id}/download` agora exige dono editorial ou entitlement ativo, registrando tentativas permitidas e negadas em `premium_access_logs`.
+- Criada documentacao `docs/PREMIUM_ENTITLEMENTS_ENGINE.md` e atualizadas documentacoes de API, roadmap, arquitetura, produto, mapa do sistema, PDF Publisher e documentacao tecnica.
+- Criado teste `backend/tests/test_premium_entitlements.py` e ampliada cobertura de download protegido por assinatura premium.
+- Criado `Premium RBAC` em `backend/app/services/rbac.py`, com papeis `admin`, `editor`, `reviewer`, `premium_subscriber` e `free_user`.
+- Adicionado modelo SQLAlchemy `UserRole` em `backend/app/models.py`.
+- Criada migration Alembic aditiva `backend/alembic/versions/20260714_0017_user_roles_rbac.py`, com rollback seguro para `20260714_0016` e backfill dos usuarios existentes como `admin`.
+- `POST /api/premium/subscriptions/grant` agora exige papel `admin` e pode conceder assinatura para `user_id` alvo.
+- Novas rotas protegidas em `/api/premium`: `GET /rbac/me`, `POST /rbac/roles/grant` e `GET /subscriber/home`.
+- Rotas editoriais premium passaram a exigir papeis operacionais conforme a acao: admin/editor/reviewer.
+- Criada tela `frontend/src/pages/PremiumSubscriber.jsx` para a `Area Premium`, com plano, papeis, permissoes, edicoes aprovadas, PDFs liberados e historico de acesso.
+- Menu lateral passou a filtrar `Research Premium` por papel editorial e adicionou `Area Premium` para assinantes.
+- Criada documentacao `docs/PREMIUM_RBAC_SUBSCRIBER_AREA.md` e atualizados documentos de API, arquitetura, produto, roadmap, mapa do sistema e documentacao tecnica.
+
+## 2026-07-13
+
+- Criado documento mestre `docs/ALPHA_PREMIUM_RESEARCH.md`, formalizando a futura vertical de research premium, carteira-modelo, newsletter, PDF/web, area de assinantes e historico auditavel.
+- Atualizados `docs/ROADMAP.md`, `docs/PRODUCT.md`, `docs/VISION_2035.md`, `docs/MAPA_DO_SISTEMA.md`, `docs/DIAGRAMA_ARQUITETURA.md`, `docs/DOCUMENTACAO_TECNICA.md` e `docs/CONSTITUICAO_DO_PROJETO.md` com a direcao Alpha Premium Research.
+- Definido que a nova vertical deve reutilizar Wealth OS, Recommended Portfolio Engine, Research & News Engine, Data Confidence, Data Lineage, Total Return, Macro/FX, Tax, Stress Test, Strategy e Copilot, sem duplicar calculos.
+- Definido fluxo obrigatorio de publicacao premium: dados, normalizacao, analise, evidencias, comite, rascunho, revisao humana, aprovacao e publicacao.
+- Registrado que nenhuma edicao premium, tese, relatorio ou carteira-modelo publicada pode ser automatica sem aprovacao humana explicita.
+- Propostos modulos futuros: Alpha Research Publisher, Thesis Engine, Revision Engine, Rating Engine, Alpha Research Committee, Portfolio Constructor, Performance Attribution, Editorial AI, PDF/Web Publisher, Subscription & Entitlements e Compliance.
+- Expandido `Data Lineage & Evidence Ledger` para cobrir os calculos visiveis de Dashboard, renda fixa/CDI, Projecoes, Impostos, Stress Test, Strategy Engine, Recommended Portfolio, Macro/FX e Alpha Copilot.
+- Criado `backend/app/services/data_lineage_integrations.py`, com integracoes de rota que gravam evidencias sem alterar regras de negocio nem payloads principais.
+- `GET /api/dashboard`, `POST /api/projections/simulate`, `GET /api/model-portfolios`, `GET /api/model-portfolios/recommended-report`, `GET /api/wealth-os/tax`, `GET /api/wealth-os/stress-test`, `GET /api/wealth-os/strategies`, `GET /api/wealth-os/macro-fx`, `GET /api/wealth-os/fx` e respostas do Copilot passaram a anexar `dataLineage`.
+- `StatCard` passou a aceitar `evidenceDomain` e `evidenceField`, exibindo botao discreto de origem do calculo que consulta `GET /api/ops/evidence`.
+- Cards principais de Visao Geral, Projecoes, Carteira Recomendada, Impostos, Estrategias e Stress Test passaram a permitir consulta da origem, formula, provider, tipo de fonte, confianca e valor registrado.
+- Testes de `backend/tests/test_data_lineage.py` foram ampliados para validar integracao com Dashboard, Financial Projection Engine e Tax Engine.
+- Criado `Data Lineage & Evidence Ledger` em `backend/app/services/data_lineage.py`, com registro de fonte, provider, formula, versao, hash dos insumos, confianca, qualidade e status por campo.
+- Criada migration Alembic `20260713_0007_data_evidence_ledger`, adicionando tabela `data_evidence_ledger` com rollback seguro.
+- Criado endpoint operacional `GET /api/ops/evidence` e adicionado resumo `dataLineage` em `GET /api/ops/observability`.
+- Market Data Engine passou a gravar evidencias de preco e fundamentos quando sincroniza ativos.
+- Portfolio Backtest passou a gravar evidencias dos campos centrais de patrimonio, retorno, renda fixa, cripto, acoes e retorno com proventos.
+- Financial Formula Auditor passou a gravar evidencia do score geral e de cada caso matematico auditado.
+- Criada documentacao `docs/DATA_LINEAGE_EVIDENCE_LEDGER.md` e teste `backend/tests/test_data_lineage.py`.
+- Iniciada migracao real para PostgreSQL/Supabase: adicionada flag `DATABASE_AUTO_CREATE_TABLES`, runtime warning para producao e bloqueio de `create_all` automatico quando desativado.
+- Criados scripts `scripts/migrate-to-supabase.ps1` e `scripts/migrate_sqlite_to_postgres.py`, com backup local, Alembic no destino, dry-run, copia por `-Apply`, limpeza opcional por `-Truncate` e protecao contra senha placeholder.
+- Criado `.env.supabase.example` e atualizados `.env.example`/`.env.production.example` com configuracoes de Supabase, jobs e producao.
+- Criado `Financial Formula Auditor` em `backend/app/services/financial_formula_auditor.py`, validando patrimonio necessario, aportes, separacao de capital gain e renda passiva, CDI diario, backtest time-weighted e inflacao.
+- Expandido `backend/app/services/job_runner.py` com jobs `market_data.user_assets`, `market_data.model_portfolios`, `macro_fx.refresh` e `financial.formula_audit`.
+- Criadas documentacoes `docs/SUPABASE_POSTGRES_MIGRATION.md`, `docs/AUTOMATED_DATA_JOBS.md` e `docs/FINANCIAL_FORMULA_AUDIT.md`.
+- Criado `Total Return Engine` em `backend/app/services/total_return_engine.py`, separando retorno de preco, aportes e renda recebida por dividendos, JCP e rendimentos cadastrados.
+- O backtest da carteira atual passou a retornar `totalReturn`, `incomeBreakdown` e retornos com renda por consolidado, ativos de risco, acoes, cripto e renda fixa.
+- Corrigido o calculo mensal do backtest para usar o checkpoint anterior como base, evitando distorcao entre card superior e grafico mes a mes.
+- Criado `Data Confidence Engine V2` em `backend/app/services/data_confidence_engine.py`, auditando preco, historico, fundamentos, proventos, movimentacoes e divergencias por ativo.
+- O backtest passou a expor `dataConfidence`, com score geral, classificacao, ativos auditados, fallback e limitacoes principais.
+- Criado `Recommendation Governance Engine` em `backend/app/services/recommendation_governance_engine.py`, com reviewId, mes, proxima revisao, status, tese, risco, evidencias, gatilhos extraordinarios e snapshot mensal.
+- `GET /api/model-portfolios` ganhou `recommendationGovernance` e `recommendedPortfolioReport.governanceLedgerV2`, sem quebrar payload antigo.
+- A tela `Minha Carteira` ganhou paineis de `Total Return auditado` e `Confianca dos dados` no backtest.
+- A tela `Carteira Recomendada` ganhou bloco de `Governanca da recomendacao`, com status de revisao, scores, trilha dos ativos, gatilhos de revisao e pontos monitorados.
+- Criadas documentacoes `docs/TOTAL_RETURN_ENGINE.md`, `docs/DATA_CONFIDENCE_ENGINE_V2.md` e `docs/RECOMMENDATION_GOVERNANCE_ENGINE.md`.
+- Criado teste `backend/tests/test_total_return_governance.py` cobrindo Total Return, Data Confidence e governanca de recomendacao.
+- Implementada a Auditoria de Confiabilidade Financeira antes do deploy: criada taxonomia unica de ativos em `backend/app/services/asset_taxonomy.py` e fotografia patrimonial central em `backend/app/services/portfolio_aggregation.py`.
+- Classes canonicas agora separam `Acoes Brasil`, `FIIs`, `ETFs Brasil`, `Renda Fixa Brasil`, `Caixa`, `Acoes Internacionais`, `ETFs Internacionais`, `REITs`, `Cripto`, `Trading`, `Commodities` e `Outros`.
+- Dashboard passou a expor `portfolioSnapshot` aditivo, com totais, P/L, alocacoes por classe/pais/regiao/moeda/setor/ativo, exposicoes e renda recorrente estimada.
+- `Strategy Engine 2.0` passou a consumir a mesma fotografia patrimonial da Visao Geral, corrigindo casos em que RDB/CDI aparecia como exposicao global.
+- `Scenario & Stress Test` passou a aplicar choques por classe canonica, com renda fixa/CDI tratada separadamente de acoes, FIIs, cripto, trading e internacional.
+- `Alpha Copilot` ganhou contexto de `portfolioSnapshot`, respondendo com maior classe, maior ativo, renda fixa, cripto, exposicao global e fontes internas em vez de depender de leituras soltas.
+- `Alpha Confidence Engine` e `Recommended Portfolio Engine` ganharam tetos de confianca para cobertura baixa, risco fraco e uso relevante de fallback, impedindo leitura institucional forte sem evidencia suficiente.
+- Menu lateral reorganizado em grupos recolhiveis `Patrimonio`, `Inteligencia`, `Gestao` e `Sistema`, mantendo todas as rotas existentes.
+- Criado teste `backend/tests/test_financial_reliability_invariants.py` validando soma de classes, pesos, P/L, RDB/CDI, cripto e stress por classe correta.
+- Compactado o menu lateral: removido o bloco informativo `Plataforma segura`, reduzidos espacamentos e consolidada a navegacao de `Proventos`, `Crescimento` e `Radar de Ativos` em `Analise da Carteira`, mantendo as rotas antigas por compatibilidade.
+- O menu lateral passou a distribuir os itens na altura disponivel, reduzindo o espaco vazio entre o ultimo item e o bloco do usuario.
+- Criado servico `backend/app/services/fixed_income.py` para estimar RDB/CDB/Tesouro/renda fixa atrelada ao CDI usando CDI diario do Banco Central SGS, com fallback controlado quando a fonte externa falhar.
+- Consulta de CDI passou a usar cache em memoria por intervalo de datas, evitando multiplas chamadas ao Banco Central ao abrir dashboard, carteira, estrategia e backtest ao mesmo tempo.
+- A `Renda passiva projetada` da Visao Geral passou a somar proventos estimados e rendimento mensal estimado de renda fixa/CDI; antes ela considerava apenas dividend yield/proventos e ignorava RDB/CDI.
+- A aba `Minha Carteira` passou a separar `Ativos de bolsa`, `Renda fixa` e `Cripto`, evitando que RDB de liquidez diaria apareca como acao ou como ativo global.
+- O backtest retroativo da carteira atual passou a separar `Renda fixa` de `Acoes` e `Cripto`, evitando que RDB/CDI distorca a curva de ativos de bolsa.
+- `Strategy Engine 2.0` e radares passaram a reconhecer renda fixa/CDI separadamente, evitando classificacao incorreta como `Global` ou entrada indevida em rankings de acoes.
+- A tela `Carteira Recomendada` recebeu explicacao humana para diferenciar `nota do relatorio` de `confianca dos dados`, com labels menos tecnicos no breakdown institucional.
+- O Alpha Copilot passou a responder diretamente perguntas de liberdade financeira com renda passiva projetada, meta mensal, distancia para a meta e premissas usadas, sem mandar o usuario consultar outro motor.
+- A tela `Sistema` substituiu termos tecnicos como requests, jobs e auditoria por leitura operacional mais simples: acessos recentes, rotinas automaticas, registros e backup.
+- Implementada fase `Production / Observability / Auditoria`, com logs estruturados JSON, metricas de request em memoria, auditoria persistente, jobs operacionais, tela `Operacoes`, backup/restore, Docker e E2E.
+- Criada migration Alembic `20260713_0006_observability_audit_jobs`, adicionando tabelas `audit_events` e `job_runs` com rollback seguro.
+- Criados `backend/app/core/observability.py`, `backend/app/services/audit.py`, `backend/app/services/job_runner.py` e `backend/app/routers/ops.py`.
+- Criados endpoints autenticados `GET /api/ops/observability`, `GET /api/ops/audit`, `GET /api/ops/jobs` e `POST /api/ops/jobs/{job_name}/run`.
+- Login, falha de login, cadastro, mutacoes HTTP, heartbeat e jobs passaram a gerar eventos de auditoria.
+- Criados scripts `scripts/backup-database.ps1` e `scripts/restore-database.ps1` para SQLite e PostgreSQL/Supabase, com restore protegido por `-ConfirmRestore`.
+- Criados `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf` e `docker-compose.prod.yml` para deploy containerizado.
+- Adicionado Playwright com teste E2E `frontend/tests/e2e/app-smoke.spec.js` e job E2E no CI.
+- Criada documentacao `docs/PRODUCTION_OBSERVABILITY_AUDIT.md` e atualizados `docs/PRODUCTION_READINESS.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Evoluido `Alpha Copilot` para chat conversacional com IA opcional, contexto interno, citacoes, nivel de confianca, follow-ups e fallback deterministico seguro.
+- Criados endpoints `GET /api/wealth-os/copilot/status` e `POST /api/wealth-os/copilot/chat`, preservando perguntas estruturadas antigas.
+- Criada tela `Copilot` no frontend, com chat, perguntas rapidas, regras de seguranca e painel de fontes da ultima resposta.
+- Adicionadas variaveis `ALPHA_COPILOT_*`, `OPENAI_API_KEY` e `OPENAI_BASE_URL` ao `.env.example`; chaves continuam somente no backend.
+- Runtime Safety passou a alertar quando Copilot com IA estiver habilitado sem chave configurada.
+- Atualizada documentacao `docs/ALPHA_COPILOT.md`, `docs/WEALTH_OS.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Criado `Scenario & Stress Test Engine` avancado em `backend/app/wealth_os/scenario_engine.py`, simulando crise global, queda de bolsa, dolar alto, Selic alta, cripto despencando, corte de renda passiva, inflacao e liquidez seca.
+- Criado endpoint autenticado `GET /api/wealth-os/stress-test`, preservando `GET /api/wealth-os/scenarios` para compatibilidade.
+- Payload consolidado `GET /api/wealth-os` ganhou campo aditivo `stressTestReport`, sem alterar payloads antigos.
+- Criada aba `Stress Test` no frontend, com score de resiliencia, pior cenario, impacto por classe, renda passiva antes/depois, premissas e acoes de acompanhamento.
+- Criado teste `backend/tests/test_scenario_stress_engine.py` e atualizada documentacao `docs/SCENARIO_ENGINE.md`, `docs/WEALTH_OS.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md`, `docs/MAPA_DO_SISTEMA.md` e `docs/DIAGRAMA_ARQUITETURA.md`.
+- Criado `Recommended Portfolio Engine` em `backend/app/services/recommended_portfolio_engine.py`, consolidando Carteira Recomendada Alpha em relatorio institucional mensal com score, tese, risco, evidencias e revisao.
+- Payload `GET /api/model-portfolios` ganhou campo aditivo `recommendedPortfolioReport`, sem remover `confidenceReport`, `dividendPortfolio`, FIIs, global, backtest ou cripto.
+- Criados endpoints `GET /api/model-portfolios/recommended-report` e `POST /api/model-portfolios/recommended-report/run`.
+- A tela `Carteira Recomendada` ganhou bloco institucional com resumo executivo, score, risco, proxima revisao, breakdown, principais ativos, matriz de risco e checklist mensal.
+- Criada documentacao `docs/RECOMMENDED_PORTFOLIO_ENGINE.md` e ampliados testes em `backend/tests/test_model_portfolios.py`.
+- Criado `Strategy Engine 2.0` em `backend/app/wealth_os/strategy_engine.py`, avaliando a carteira contra perfis de dividendos, crescimento, global, cripto controlado, aposentadoria, Barsi, Buffett, Bogle, Dalio e Lynch.
+- Criado endpoint autenticado `GET /api/wealth-os/strategies`, retornando perfil dominante, score de aderencia, alocacao atual, metricas, fatores, gaps, proximos estudos e encaixe dos ativos.
+- Criada aba `Estrategias` no frontend, com ranking de perfis, atual versus alvo, leitura humana, fatores e ativos mais compativeis com o perfil selecionado.
+- O payload consolidado `GET /api/wealth-os` ganhou campo aditivo `strategyReport`, sem alterar rotas antigas.
+- Criado teste `backend/tests/test_strategy_engine.py` e documentacao `docs/STRATEGY_ENGINE.md`.
+- Removido `React.StrictMode` do preview local para evitar chamadas duplicadas de `useEffect` no ambiente de desenvolvimento, que causavam requests repetidos e locks no SQLite.
+- SQLite local passou a usar `PRAGMA journal_mode=WAL`, `busy_timeout=30000` e timeout de conexao para reduzir `database is locked` durante uso simultaneo.
+- Research & News Engine passou a tratar falha de escrita de cache como nao bloqueante, evitando que a Carteira Recomendada caia quando o cache de noticias nao puder ser gravado.
+- Screeners Alpha B3, FIIs e Global deixaram de regravar metadados de ativos ja existentes em rotas de leitura, reduzindo escritas desnecessarias no banco.
+- A Visao Geral passou a ter fallback visual do `Centro de Comando Patrimonial`; se a API auxiliar falhar, a tela nao volta mais para a composicao antiga.
+- Criado `Tax Engine` em `backend/app/wealth_os/tax_engine.py`, com estimativa operacional de JCP/IRRF, ganho de capital em acoes, ganho de capital em FIIs, isencao condicional de rendimentos de FIIs e lacunas tributarias controladas.
+- Criado endpoint `GET /api/wealth-os/tax` com filtros `year` e `month`.
+- Criada aba `Impostos` no frontend, exibindo proventos brutos, ganho realizado, IRRF estimado, DARF estimado, liquido estimado, eventos tributarios, regras e lacunas.
+- Criado teste `backend/tests/test_tax_engine.py` e documentacao `docs/TAX_ENGINE.md`.
+- Criado `Macro / FX Engine` real em `backend/app/wealth_os/macro_fx_engine.py`, usando Banco Central SGS para Selic, IPCA, USD/BRL e EUR/BRL.
+- `GET /api/wealth-os/economic` passou a consumir leituras reais do Macro / FX Engine em vez de textos de fundacao.
+- Criados endpoints aditivos `GET /api/wealth-os/macro-fx` e `GET /api/wealth-os/fx`, com suporte a `refresh=true`.
+- Macro e cambio agora gravam cache obrigatorio em `market_data_cache` e registram falhas de fonte em `market_data_provider_events`.
+- Criado teste `backend/tests/test_macro_fx_engine.py` validando Banco Central SGS, cache e fallback para cache quando provider falha.
+- Corrigido o carregamento da `Visao Geral`: o dashboard aguarda `Resumo Inteligente` e `Centro de Comando Patrimonial` carregarem ou falharem com seguranca antes de renderizar, evitando o flash da versao anterior.
+- Criada documentacao `docs/MACRO_FX_ENGINE.md` e atualizados `docs/ECONOMIC_ENGINE.md`, `docs/DOCUMENTACAO_TECNICA.md` e `docs/ROADMAP.md`.
+- Criada fundacao `Alpha Wealth OS` em `backend/app/wealth_os`, com contratos, Goal Engine, Wealth Progress Score, Data Confidence Engine, Scenario Engine, Economic Engine, Opportunity Engine e Alpha Copilot estruturado.
+- Criada rota aditiva `GET /api/wealth-os/command-center` e demais endpoints `/api/wealth-os/*`, sem alterar payloads antigos.
+- A `Visao Geral` ganhou bloco `Centro de Comando Patrimonial`, exibindo missao atual, Wealth Score, metas, oportunidades e confiabilidade dos dados.
+- Criados testes `backend/tests/test_wealth_os.py` para validar centro de comando, metas, confianca de dados e Copilot estruturado.
+- Criadas documentacoes `docs/WEALTH_OS.md`, `docs/GOAL_ENGINE.md`, `docs/WEALTH_PROGRESS_SCORE.md`, `docs/SCENARIO_ENGINE.md`, `docs/OPPORTUNITY_ENGINE.md`, `docs/ECONOMIC_ENGINE.md`, `docs/DATA_CONFIDENCE.md` e `docs/ALPHA_COPILOT.md`.
+- Criado `Event Engine 2.0` em `backend/app/wealth_os/event_engine_v2.py`, unificando alertas manuais, eventos Alpha, insights e Guardian em uma fila unica.
+- Criado `Guardian 2.0` em `backend/app/wealth_os/guardian_engine.py`, com monitoramento preventivo por saude, concentracao, metas, confianca dos dados, Wealth Score e ativos em revisao.
+- `GET /api/alerts` passou a consumir o Event Engine 2.0 mantendo compatibilidade com a tela atual.
+- Criados endpoints `GET /api/wealth-os/events` e `GET /api/wealth-os/guardian`.
+- A tela `Alertas` passou a exibir prioridade, status e confianca dos eventos.
+- Criadas documentacoes `docs/EVENT_ENGINE_V2.md` e `docs/GUARDIAN_2.md`.
+- Criado `Research & News Engine` em `backend/app/wealth_os/research_news_engine.py`, consolidando fundamentos, fatos tratados, eventos, noticias externas com cache, riscos, oportunidades, lacunas e score de research por ativo.
+- Criados endpoints `GET /api/wealth-os/research` e `GET /api/wealth-os/research/{ticker}`.
+- A tela `Carteira Recomendada Alpha` ganhou bloco `Research & Evidence Center`, mostrando cobertura de pesquisa, saude das fontes, cards por ativo e feed de noticias quando disponivel.
+- Noticias externas passam pelo backend e cache em `market_data_cache`; o frontend nao acessa provider externo nem tokens.
+- Criados testes `backend/tests/test_research_news_engine.py`.
+- Criadas documentacoes `docs/RESEARCH_NEWS_ENGINE.md` e `docs/EVIDENCE_CENTER.md`.
+- Criada fundacao de `Production Readiness`: runtime safety gate, readiness endpoint, security headers, rate limit de autenticacao, template `.env.production.example` e CI.
+- Novo arquivo `backend/app/core/runtime_safety.py` bloqueia startup em `ENVIRONMENT=production` quando houver `SECRET_KEY` fraca/padrao, SQLite, seed demo ativo, provider mock ou Trading Desk habilitado sem chave.
+- Novo endpoint `GET /api/ready` retorna status do banco e findings sanitizados de configuracao, sem expor secrets.
+- Login e cadastro passaram a ter rate limit em memoria por IP/email em `backend/app/core/rate_limit.py`.
+- Backend passou a aplicar headers basicos de seguranca, `X-Request-ID` e `X-Process-Time-Ms` em todas as respostas.
+- Criado workflow `.github/workflows/ci.yml` para testes backend e build frontend em push/pull request.
+- Criada documentacao `docs/PRODUCTION_READINESS.md` e atualizados `README.md` e `docs/DOCUMENTACAO_TECNICA.md`.
+- Criado `Alpha Confidence Engine` em `backend/app/services/alpha_confidence_engine.py` para auditar a confianca da Carteira Recomendada.
+- Payload de `GET /api/model-portfolios` ganhou campo aditivo `confidenceReport`, com nota geral, gates de confianca, leitura humana, regras nao negociaveis e confianca por ativo.
+- A tela `Carteira Recomendada` passou a exibir o bloco `Confiabilidade Alpha`, mostrando criterios de dados, metodologia, fundamentos, risco, diversificacao, historico e fontes.
+- Criada documentacao `docs/ALPHA_CONFIDENCE_ENGINE.md` e atualizados `docs/MODEL_PORTFOLIOS.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md` e `docs/MAPA_DO_SISTEMA.md`.
+- Testes de Carteira Recomendada passaram a validar que a camada de confianca existe, possui gates e preserva a regra de nunca tratar ativo como `compra sem medo`.
+- A aba `Minha Carteira` foi reorganizada visualmente para separar `Minha carteira de acoes` e `Minha carteira de cripto`.
+- Os cards superiores da aba `Minha Carteira` agora exibem apenas valor atual de acoes, quantidade de ativos, P/L de acoes e peso em acoes.
+- A tabela principal da aba `Minha Carteira` passou a listar apenas acoes/ativos de bolsa; criptomoedas agora aparecem em bloco proprio abaixo, com cards e tabela separados.
+- O formulario da aba `Minha Carteira` passou a focar em compra/venda de acoes e ativos de bolsa; cripto permanece com fluxo proprio na aba `Cripto`.
+- Na `Visao Geral`, o card consolidado passou a aparecer como `P/L total`, deixando claro que agrega acoes, cripto e integracoes externas como Trading Desk EV+.
+
+## 2026-07-12
+
+- Criada fundacao `Proventos Engine` em `backend/app/services/income.py`, tratando dividendos, JCP, rendimentos de FIIs e outros rendimentos como renda passiva distribuida.
+- Dashboard e motores Alpha passaram a usar linguagem de `proventos` na leitura humana, preservando chaves antigas como `dividendsMonth`, `dividendsYear` e `totalDividends` por compatibilidade.
+- Financial Projection Engine ganhou campos aditivos `totalProceeds`, `proceedsTotal`, `reinvestedProceeds` e `withdrawnProceeds`, mantendo as chaves antigas para nao quebrar payloads.
+- Criado `Screener Alpha FIIs` em `backend/app/services/alpha_fii_screener.py`, com rotas `GET /api/model-portfolios/fii-screener` e `POST /api/model-portfolios/fii-screener/run`.
+- A tela `Carteira Recomendada` passou a exibir bloco separado `Carteira Alpha FIIs - estudo inicial`, sem misturar FIIs com o Screener Alpha B3 de acoes e sem comunicar a lista como varredura completa do mercado.
+- Criado `Screener Alpha Global` em `backend/app/services/alpha_global_equity_screener.py`, com rotas `GET /api/model-portfolios/global-screener` e `POST /api/model-portfolios/global-screener/run`.
+- A tela `Carteira Recomendada` passou a exibir `Carteira Alpha Global - watchlist inicial`, com acoes internacionais, pais, regiao, moeda, peso, score, tese e pontos de acompanhamento.
+- Criada documentacao `docs/SCREENER_ALPHA_GLOBAL.md` e atualizados `docs/MODEL_PORTFOLIOS.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md` e `docs/MAPA_DO_SISTEMA.md`.
+- Criado `Global Backtest Engine` em `backend/app/services/global_backtest.py`, comparando stock direto, BDR proxy e ETF global em BRL com cambio e dividendos internacionais simulados.
+- Criadas rotas `GET /api/model-portfolios/global-backtest` e `POST /api/model-portfolios/global-backtest/run`.
+- A tela `Carteira Recomendada` ganhou painel `Backtest internacional com cambio`, com periodo, valor inicial, evolucao em reais, retorno final, dividendos/proventos internacionais e tabela operacional stock x BDR x ETF.
+- Criada documentacao `docs/GLOBAL_BACKTEST_ENGINE.md` e teste de compatibilidade para o backtest global.
+- Menu e telas principais passaram a chamar a aba de renda distribuida de `Proventos`, deixando claro que JCP e FIIs tambem entram no conceito.
+- Criadas documentacoes `docs/PROVENTOS_ENGINE.md` e `docs/SCREENER_ALPHA_FIIS.md`.
+- Adicionados testes `backend/tests/test_income_classification.py` e cobertura do Screener Alpha FIIs em `backend/tests/test_model_portfolios.py`.
+- Criado `Crypto Research Engine` em `backend/app/services/crypto_research_engine.py` para validar a cripto do mes apos o Screener Alpha Crypto.
+- O fluxo de cripto agora separa `Screener` e `Research`: o screener encontra oportunidades; o research valida narrativa, tokenomics, liquidez, assimetria, risco, catalisadores, due diligence e cenarios.
+- Payload de `cryptoStudy` ganhou campos aditivos `researchReport`, `researchScore`, `researchStatus`, `conviction`, `researchRanking` e `research`.
+- A tela `Carteira Recomendada` passou a exibir tese de research, catalisadores, riscos, due diligence, score breakdown e cenarios para a cripto do mes.
+- Criada documentacao `docs/CRYPTO_RESEARCH_ENGINE.md` e atualizados `docs/MODEL_PORTFOLIOS.md`, `docs/DOCUMENTACAO_TECNICA.md`, `docs/ROADMAP.md` e `docs/MAPA_DO_SISTEMA.md`.
+- Testes de Carteira Recomendada atualizados para garantir que a cripto do mes passe por `selecionada_por_research_engine` e possua relatorio com cenarios.
+- Corrigida a aba `Alertas`: agora `GET /api/alerts` consolida alertas manuais, eventos importantes do Alpha Intelligence, insights e itens do Guardian.
+- A tela `Alertas` passou a mostrar `Monitoramento Alpha`, resumo de abertos/criticos/eventos/Guardian, impacto, origem e acao sugerida.
+- Criado teste `backend/tests/test_alerts_intelligence.py` garantindo que eventos do Resumo Inteligente aparecam na aba Alertas mesmo sem alertas manuais.
+- Refinada a linguagem dos Alertas para leitura humana, removendo jargao tecnico e deixando claro quando a carteira esta apenas em fase de construcao.
+- Ajustado Guardian para nao classificar ativos neutros da Carteira Recomendada Alpha, como CPFE3/PSSA3/BBSE3/VIVT3, como `fora da faixa saudavel` apenas por nota mediana.
+- Adicionado teste garantindo que ativo recomendado com nota neutra nao vire alerta assustador de revisao.
+- Corrigido bloco `Independencia financeira` da aba `Projecoes`: `Quanto falta` agora representa patrimonio necessario menos patrimonio atual considerado, e nao renda faltante no fim da simulacao.
+- Adicionados campos `currentWealthForGoal`, `remainingWealthToGoal`, `currentGoalProgressPct` e `projectedGoalProgressPct` ao Financial Projection Engine.
+- A rota `POST /api/projections/simulate` passou a considerar o patrimonio consolidado atual da carteira para calcular a distancia ate a meta de renda passiva.
+
+## 2026-07-11
+
+- Criado modulo `Carteira Recomendada` com rota `GET /api/model-portfolios` e tela `frontend/src/pages/ModelPortfolios.jsx`.
+- Normalizados os relatorios enviados pelo usuario em uma carteira modelo de dividendos, dois ativos pimenta, backtest contra renda fixa e estudo cripto especulativo com guardrails.
+- Criada documentacao `docs/MODEL_PORTFOLIOS.md` e teste `backend/tests/test_model_portfolios.py`.
+- O modulo usa linguagem de estudo analitico e nao emite ordem direta de compra ou venda, nem promessa de rentabilidade.
+- Area de cripto passou a se chamar `Cripto do mes`, com criterios de varredura mensal para candidatas especulativas.
+- Carteira Recomendada agora exibe procedencia como base importada dos relatorios e pendente de validacao independente pelo Alpha.
+- Corrigido layout da Carteira Recomendada para evitar corte da coluna `Monitorar`, ampliar o grafico de alocacao por setor e trocar o tooltip escuro por tooltip claro/dourado.
+- Criada validacao Alpha inicial da Carteira Recomendada, com status por ativo, score geral, criterios, bloqueios, rota `POST /api/model-portfolios/validate` e tentativa de atualizacao via Market Data Engine/BRAPI.
+- Documentada a regra de validacao honesta da Carteira Recomendada: quando BRAPI/Fundamentus ou fontes futuras nao trouxerem dados suficientes, o sistema deve marcar `dados_insuficientes` ou `em_validacao`, sem fingir recomendacao validada.
+- Corrigido `scripts/start-carteira-alpha.ps1` para localizar o `pnpm` no diretorio `dependencies/bin/fallback` do runtime local quando `npm` nao estiver no PATH.
+- Expandido Market Data Engine v2 para arquitetura multi-provider com `collect`, cache separado por provider e providers novos para Financial Modeling Prep, Twelve Data, CoinMarketCap v2, CoinGecko, Banco Central e Dados de Mercado.
+- `sync_asset_market_data` passou a consolidar fundamentos de varias fontes reais antes de declarar dados insuficientes, preservando fallback e sem usar mock para sobrescrever dado real.
+- Sincronizacao de cripto passou a usar Market Data Engine v2 com CoinMarketCap e fallback CoinGecko antes do provider legado.
+- `.env.example`, documentacao tecnica e `docs/MARKET_DATA_ENGINE.md` atualizados com novas variaveis de ambiente e regras de seguranca para tokens.
+- Carteira Recomendada passou a classificar ativos com dados parciais como `Em observacao` quando a nota ainda e limitada por ausencia de campos, evitando tratar falta parcial de dados como reprovacao definitiva.
+- Ajustada a experiencia da aba Carteira Recomendada para exibir uma leitura decisiva de carteira (`Carteira Recomendada Alpha`) em vez de mostrar tabela tecnica de validacao, bloqueios, dados parciais e status internos ao usuario final.
+- Criado `Screener Alpha B3` em `backend/app/services/alpha_b3_screener.py`, com rotas `GET /api/model-portfolios/screener` e `POST /api/model-portfolios/screener/run`.
+- A tela `Carteira Recomendada` passou a usar a `Carteira Recomendada Alpha oficial` gerada pelo Screener Alpha B3, deixando a carteira importada da Manus apenas como historico/compatibilidade.
+- Carteira Recomendada Alpha oficial inicial definida com BBSE3, TAEE11, ITSA4, BBAS3, EGIE3, CPFE3, SAPR11, PSSA3, VIVT3 e CSMG3, totalizando 100%.
+- Criada documentacao tecnica `docs/SCREENER_ALPHA_B3.md` e atualizados `docs/MODEL_PORTFOLIOS.md`, `docs/DOCUMENTACAO_TECNICA.md` e `docs/ROADMAP.md`.
+- Aba `Minha Carteira` passou a exibir resumo compacto com quantidade de acoes, quantidade de cripto, P/L de acoes, P/L de cripto e P/L consolidado.
+- Endpoint `GET /api/portfolio` recebeu campo aditivo `summary`, calculado no backend, preservando payloads existentes.
+- Criado Backtest da Carteira Atual na aba `Minha Carteira`, com filtros de periodo, grafico de patrimonio retroativo e grafico de retorno mensal.
+- Criado endpoint `GET /api/portfolio/backtest` e servico `backend/app/services/portfolio_backtest.py`, usando Market Data Engine v2 para historico de precos.
+- CoinGeckoProviderV2 passou a suportar `price_history` para criptomoedas via `market_chart/range`.
+- Adicionado `YahooFinanceChartProviderV2` como fallback auxiliar para historico longo de acoes quando BRAPI/FMP/Twelve nao liberarem o periodo necessario.
+- Criada documentacao `docs/PORTFOLIO_BACKTEST.md` e testes `backend/tests/test_portfolio_backtest.py`.
+- Refinado visual do Backtest da Carteira Atual com paineis escuros premium, tooltip proprio, cursor discreto, mensagem amigavel para falha de conexao e explicacao do valor inicial simulado.
+- Backtest da Carteira Atual passou a normalizar o valor inicial pelo patrimonio atual da carteira, adicionando badge de lucro/prejuizo acumulado e rotulos percentuais nas barras quando houver espaco visual.
+- Corrigido Backtest da Carteira Atual para usar o valor atual real de cada ativo como baseline individual, preservando os totais atuais de acoes e cripto e removendo os percentuais fixos das barras para reduzir poluicao visual.
+- Primeiro ponto do Backtest da Carteira Atual agora representa exatamente a data inicial escolhida, evitando que o grafico comece no fechamento do mes com valores diferentes da alocacao atual.
+- Backtest da Carteira Atual passou a considerar o aporte mensal salvo em `Premissas das Projecoes` na Visao Geral, aplicando dinheiro novo no inicio de cada mes simulado sem contabilizar aporte como rentabilidade.
+- Corrigido `Retorno total` do Backtest da Carteira Atual para usar performance encadeada dos ativos, evitando que aportes mensais reduzam artificialmente a rentabilidade percentual exibida.
+- Criado `Screener Alpha Crypto` com regra Binance-first para o bloco `Cripto do mes`; JASMY substitui PEPETO como candidata atual por atender ao criterio de compra simples via Binance Spot JASMY/USDT.
+- `Screener Alpha Crypto` evoluido para varredura mensal de oportunidades externas com Binance, CoinMarketCap e CoinGecko, ranking Top 5, cache mensal por usuario e decisao entre `nova_oportunidade` e `reforcar_tese_existente`.
+
+## 2026-07-10
+
+- Criado `docs/CONSTITUICAO_DO_PROJETO.md` como documento permanente e diretriz maxima de arquitetura, engenharia e produto do Carteira Alpha 360.
+- `docs/DOCUMENTACAO_TECNICA.md`, `docs/PRODUCT.md`, `docs/ARQUITETO_CHEFE.md`, `docs/VISION_2035.md` e `docs/ROADMAP.md` passaram a referenciar a Constituicao do Projeto como nivel superior da documentacao.
+- Nenhuma funcionalidade, regra de negocio, rota, modelo de banco ou layout foi alterado nesta etapa documental.
+
+## 2026-07-09
+
+- Criado `FinancialProjectionEngine` em `backend/app/engines/financial_projection_engine.py` como fonte unica para projecoes financeiras.
+- Criada integracao opcional com Trading Desk EV+ via `TRADING_DESK_*`, somando saldo externo ao patrimonio consolidado quando conectada.
+- Integracao Trading Desk EV+ agora possui fallback local por `TRADING_DESK_LOCAL_PATH`, lendo `config_banca.json` e `historico_financeiro.json` mesmo com o Trading Desk fechado.
+- Adicionado card "Trading Desk EV+" na Visao Geral quando a integracao estiver habilitada.
+- Ajustada faixa de KPIs da Visao Geral para modo compacto em 5 colunas quando Trading Desk EV+ estiver ativo.
+- Card Trading Desk EV+ passou a mostrar o P/L em reais sobre o capital inicial, evitando exibir percentual sem contexto.
+- Ajustada a legenda do grafico "Alocacao por classe" para nao cortar nomes no dashboard.
+- Adicionado botao Salvar nas "Premissas das projecoes" da Visao Geral, persistindo aporte mensal e rentabilidade mensal por usuario via `GET/PUT/DELETE /api/dashboard/projection-premises`.
+- Adicionado salvamento de premissas da aba Projecoes por usuario, com tabela `user_preferences` e endpoints `GET/PUT/DELETE /api/projections/premises`.
+- A aba Projecoes agora carrega o ultimo cenario salvo e evita voltar automaticamente para premissas padrao ao atualizar a tela.
+- Simulador passou a separar capital gain, renda passiva, retorno total, patrimonio nominal, patrimonio real, inflacao, dividendos reinvestidos e dividendos sacados.
+- Meta de independencia financeira agora e calculada exclusivamente por renda passiva: patrimonio vezes yield anual dividido por 12.
+- Mantida compatibilidade do endpoint `POST /api/projections/simulate`, com novos campos opcionais para reinvestimento parcial, aumento anual dos aportes e series variaveis.
+- Dashboard passou a consultar o endpoint de projecoes para cenarios de 10 e 30 anos, removendo calculo financeiro do React.
+- Criado painel "Como o patrimonio cresceu" e bloco de independencia financeira na tela de Projecoes.
+- Criado `FundamentusProviderV2` como provider secundario, opcional, desativado por padrao, com cache via Market Data Engine, verificacao de robots, rate limit conservador e fallback.
+- Criada migration `20260709_0004_knowledge_facts_and_provider_events` com `asset_facts`, `asset_metric_divergences` e `market_data_provider_events`.
+- Criado `KnowledgeEngine` para salvar fatos por fonte, comparar Fundamentus contra BRAPI/CVM/B3 e marcar divergencias sem sobrescrever dados oficiais.
+- Criados testes `test_financial_projection_engine.py` e `test_fundamentus_knowledge_engine.py`.
+- Documentacao atualizada com `docs/FINANCIAL_PROJECTION_ENGINE.md`, formulas, regras do Fundamentus e tabelas do Knowledge Engine.
+- Etapa 2 tecnica iniciada: Market Data Engine v2 implementado de forma aditiva, sem alterar payloads atuais nem layout.
+- Criados contratos `MarketDataProviderV2`, `MarketDataRequest`, `NormalizedMarketData` e tipos normalizados para cotacoes, fundamentos, dividendos, historico, cambio e busca de ativos.
+- Criados `MarketDataEngine`, `ProviderManager`, normalizacao, cache em memoria e cache persistente `market_data_cache`.
+- Criados providers v2 para BRAPI e mock, mantendo providers antigos intactos.
+- `sync_asset_market_data` passou a usar o engine v2 para BRAPI de forma conservadora, sem gravar dado mock quando BRAPI falha.
+- Corrigido tooltip do grafico "Alocacao por classe" para melhorar contraste e evitar aparencia de bloco preto.
+- Nenhuma chave Supabase, BRAPI ou secret foi gravada em codigo ou documentacao.
+- Etapa 1 tecnica do Asset Engine Universal implementada com migration Alembic `20260709_0002_asset_engine_universal`.
+- Adicionados campos globais em `assets`: `universal_symbol`, `asset_subclass`, `country_code`, `region`, `market`, `exchange`, `base_currency`, `trading_currency`, `industry`, `isin`, `cusip` e `status`.
+- Criadas tabelas auxiliares `asset_identifiers`, `asset_classifications` e `asset_exposures` com rollback seguro.
+- Backfill local executado: 18 ativos receberam `universal_symbol`, com 36 identificadores, 54 classificacoes e 46 exposicoes criadas.
+- Criado helper `backend/app/engines/asset_engine.py` para preencher metadados globais em novos ativos sem alterar payloads atuais.
+- Criados testes de compatibilidade em `backend/tests/test_asset_engine_compatibility.py`.
+- Fase 1 documental iniciada: refinamento arquitetural para tratar todo investimento como `Asset` universal antes da taxonomia global.
+- Criados documentos `ARQUITETO_CHEFE`, `PRODUCT`, `MAPA_DO_SISTEMA`, `DIAGRAMA_ARQUITETURA`, `ROADMAP` e `VISION_2035`.
+- Criados documentos dos motores `ASSET_ENGINE`, `MARKET_DATA_ENGINE`, `KNOWLEDGE_ENGINE` e `STRATEGY_ENGINE`.
+- Plano Mestre atualizado com os pilares Asset Engine Universal, Market Data Engine, Knowledge Engine, Strategy Engine, Global Portfolio Engine, FX/Money Engine, Alpha Score Mundial, Wealth Builder, Guardian e Copilot.
+- Nenhuma tela, rota, regra de negocio ou modelo de banco foi alterado nesta etapa.
+- Fase 0 aprovada iniciada: adicionada base oficial de migracoes com Alembic sem alterar comportamento funcional do sistema.
+- Criado baseline `20260709_0001` espelhando o schema atual de usuarios, ativos, transacoes, dividendos, alocacoes, alertas e eventos Alpha.
+- Banco SQLite local `backend/carteira_alpha.db` marcado como `20260709_0001` para futuras migracoes partirem do schema atual.
+- Criados scripts `scripts/db-migrate.ps1` e `scripts/db-stamp-head.ps1` para evoluir bancos novos ou marcar bancos locais existentes como baseline.
+- README e documentacao tecnica atualizados com estrategia de migracoes, comandos e criterios de manutencao.
+- Criado `scripts/start-carteira-alpha.ps1` para iniciar backend/frontend automaticamente, validar portas, descobrir IP atual e salvar URLs em `logs/carteira-alpha-urls.txt`.
+- Criado `scripts/install-windows-shortcuts.ps1` para instalar atalho na Area de Trabalho e inicializacao automatica do servidor ao entrar no Windows.
+- Criado `scripts/stop-carteira-alpha.ps1` para parar processos nas portas `5173` e `8000`.
+- README e documentacao tecnica atualizados para priorizar o inicializador unico e reduzir dependencia de IP manual.
+- Ajustada apenas a sidebar para voltar a ter navegacao mais alta e confortavel, mantendo o restante das telas compacto.
+
+## 2026-07-08
+
+- Radar de Dividendos, Crescimento e Ativos agora mostra apenas ativos da carteira do usuario logado.
+- Adicionado botao de remover posicao tambem nas telas de Radar/Dividendos/Crescimento.
+- Adicionado endpoint `POST /api/portfolio/sync-market` para tentar atualizar dados de mercado dos ativos da carteira.
+- Ativos com fundamentos incompletos agora aparecem como `Dados parciais`, evitando tratar zeros como analise definitiva.
+- Dashboard passou a exibir premissas ajustaveis para projecoes de 10 e 30 anos.
+- Simulador de Projecoes esclarece que rentabilidade mensal e separada de dividendos/JCP, evitando dupla contagem quando aplicavel.
+- Adicionada aba Cripto 360 com cadastro de compra/venda, tabela propria, Crypto Score inicial e sync preparado via CoinMarketCap.
+- Cripto passa a consolidar no patrimonio total, mas fica fora da renda passiva e do radar tradicional de dividendos.
+- Configurado suporte a chave CoinMarketCap no `.env` local e ajustado parser para respostas v3 com `data`/`quote` em lista.
+- Aplicada densidade visual compacta no frontend: cards, tabelas, inputs, graficos, menu lateral, header e tela de Projecoes reduzem altura para diminuir scroll em desktop.
