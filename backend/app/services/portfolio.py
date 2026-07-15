@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -172,11 +172,11 @@ def get_positions_with_month_performance(db: Session, user_id: str) -> list[dict
         return positions
 
     today = date.today()
-    month_start = date(today.year, today.month, 1)
+    performance_start = _month_performance_start(today)
     engine = MarketDataEngine(db=db)
 
     for position in positions:
-        position["monthStartDate"] = month_start.isoformat()
+        position["monthStartDate"] = performance_start.isoformat()
         position["monthStartPrice"] = position.get("currentPrice") or 0
         position["monthStartValue"] = position.get("currentValue") or 0
         position["monthPnl"] = 0.0
@@ -196,13 +196,13 @@ def get_positions_with_month_performance(db: Session, user_id: str) -> list[dict
                 market=asset.market or ("Crypto" if taxonomy.is_crypto else "B3"),
                 asset_class=asset.asset_class,
                 currency=asset.currency or "BRL",
-                start_date=month_start,
+                start_date=performance_start - timedelta(days=10),
                 end_date=today,
                 interval="1day",
             )
             record, prices = _first_price_history(engine, request)
             current_price = as_float(position.get("currentPrice"), 6)
-            start_price = _month_start_price(prices, month_start, current_price)
+            start_price = _month_start_price(prices, performance_start, current_price)
             quantity = as_float(position.get("quantity"), 6)
             start_value = quantity * start_price
             current_value = as_float(position.get("currentValue"))
@@ -267,6 +267,10 @@ def _month_start_price(prices: list[dict], month_start: date, fallback: float) -
         if row["date"] <= month_start:
             before = row
     return as_float((before or {}).get("close"), 6) or fallback
+
+
+def _month_performance_start(today: date) -> date:
+    return date(today.year, today.month, 1) - timedelta(days=1)
 
 
 def _reduce_fixed_income_lots(lots: list[dict], amount: Decimal) -> None:
@@ -442,7 +446,7 @@ def get_dashboard(db: Session, user_id: str) -> dict:
     portfolio_invested = sum(item["investedValue"] for item in positions)
     portfolio_pnl = portfolio_current - portfolio_invested
 
-    trading_desk = get_trading_desk_summary()
+    trading_desk = get_trading_desk_summary(db=db, user_id=user_id)
     external_accounts: list[dict] = []
     external_current = 0.0
     external_invested = 0.0
@@ -510,7 +514,7 @@ def get_dashboard(db: Session, user_id: str) -> dict:
             "projectedPassiveIncomeBreakdown": {
                 "proceeds": round(projected_proceeds_income, 2),
                 "fixedIncome": round(projected_fixed_income, 2),
-                "description": "Soma mensal estimada de proventos e renda fixa/CDI. Nao inclui valorizacao de mercado de acoes ou cripto.",
+                "description": "Soma mensal estimada de proventos e renda fixa/CDI. Não inclui valorização de mercado de ações ou cripto.",
             },
             "portfolioEquity": round(portfolio_current, 2),
             "externalEquity": round(external_current, 2),

@@ -65,6 +65,80 @@ O Carteira Alpha 360 e uma plataforma SaaS web para acompanhamento e analise de 
 - PostgreSQL/Supabase migration, com Alembic controlado, `DATABASE_AUTO_CREATE_TABLES=false` em producao, backup local, dry-run, copia de dados por script e auditoria matematica apos migracao.
 - Jobs automaticos de dados, com sincronizacao de ativos do usuario, revisao das carteiras recomendadas, refresh Macro/FX e auditoria financeira recorrente.
 - Alpha Premium Research como vertical futura de research, carteira-modelo, edicao mensal, newsletter, PDF/web, assinatura, historico auditavel e publicacao com aprovacao humana.
+- External Integration Snapshot Bridge para guardar, no Supabase da propria Carteira Alpha, o ultimo saldo consolidado do Trading Desk EV+ e permitir exibicao online mesmo quando a API local do Trading Desk nao estiver acessivel.
+
+## Atualizacao 2026-07-15 - Snapshot Bridge Trading Desk EV+
+
+Arquivos principais:
+
+- `backend/alembic/versions/20260715_0020_external_integration_snapshots.py`
+- `backend/app/models.py`
+- `backend/app/routers/integrations.py`
+- `backend/app/services/external_integrations.py`
+- `backend/app/services/trading_desk_integration.py`
+- `backend/app/services/portfolio.py`
+- `backend/app/services/portfolio_aggregation.py`
+
+Objetivo:
+
+- Usar o mesmo Supabase/PostgreSQL da Carteira Alpha para armazenar um resumo historico do Trading Desk EV+.
+- Evitar criar outro projeto Supabase.
+- Evitar expor o Trading Desk inteiro na internet.
+- Permitir que a Visao Geral mostre o ultimo saldo conhecido do Trading Desk quando o backend online nao consegue acessar `localhost` do computador do usuario.
+
+Tabela criada:
+
+- `external_integration_snapshots`
+
+Campos principais:
+
+- `integration_key`: identificador da integracao, hoje `trading_desk_ev_plus`.
+- `user_id`: opcional, permite associar snapshot a usuario especifico quando houver email dono configurado.
+- `current_balance`: saldo atual consolidado.
+- `initial_capital`: capital inicial.
+- `realized_pnl`: lucro/prejuizo realizado.
+- `open_pnl`: lucro/prejuizo em aberto, hoje `0` para o Trading Desk.
+- `total_pnl`: realizado + aberto.
+- `total_pnl_pct`: percentual sobre capital inicial.
+- `source_payload_json`: payload bruto recebido para auditoria.
+- `observed_at`: data/hora informada pela fonte.
+
+Endpoint criado:
+
+```http
+POST /api/integrations/trading-desk/snapshot
+Header: X-Integration-Key: <TRADING_DESK_INTEGRATION_KEY>
+```
+
+Payload esperado:
+
+```json
+{
+  "source": "trading_desk_ev_plus",
+  "name": "Trading Desk EV+",
+  "currency": "BRL",
+  "currentBalance": 86.87,
+  "initialCapital": 100,
+  "realizedPnl": -13.13,
+  "openPnl": 0,
+  "totalPnl": -13.13,
+  "totalPnlPct": -13.13,
+  "updatedAt": "2026-07-15T18:00:00-03:00"
+}
+```
+
+Regras:
+
+- O endpoint nao aceita chamada sem `X-Integration-Key`.
+- A chave deve existir no Render em `TRADING_DESK_INTEGRATION_KEY`.
+- O snapshot nao substitui a API antiga do Trading Desk; ele e fallback persistente.
+- O dashboard soma o Trading Desk ao patrimonio quando recebe snapshot com `connected=true`.
+- Se a API local estiver acessivel, ela continua sendo usada. Se falhar, o ultimo snapshot salvo no Supabase e utilizado.
+
+Variaveis:
+
+- `TRADING_DESK_INTEGRATION_KEY`: chave privada compartilhada entre Trading Desk e backend Carteira Alpha.
+- `TRADING_DESK_SNAPSHOT_OWNER_EMAIL`: opcional; associa snapshots ao usuario correspondente.
 
 ## Atualizacao 2026-07-15 - Supabase PostgreSQL real
 

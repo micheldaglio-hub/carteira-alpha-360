@@ -175,7 +175,7 @@ def build_user_portfolio_snapshot(db: Session, user_id: str, *, include_external
     assets = _load_assets(db, positions)
     external_accounts = []
     if include_external:
-        trading = get_trading_desk_summary()
+        trading = get_trading_desk_summary(db=db, user_id=user_id)
         if trading.get("connected"):
             external_accounts.append(
                 {

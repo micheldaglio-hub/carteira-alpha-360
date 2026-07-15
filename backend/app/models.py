@@ -110,6 +110,28 @@ class JobRun(Base):
     details_json: Mapped[str] = mapped_column(Text, default="{}")
 
 
+class ExternalIntegrationSnapshot(Base):
+    __tablename__ = "external_integration_snapshots"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    integration_key: Mapped[str] = mapped_column(String(120), index=True)
+    provider: Mapped[str] = mapped_column(String(80), default="", index=True)
+    name: Mapped[str] = mapped_column(String(160), default="", index=True)
+    status: Mapped[str] = mapped_column(String(32), default="received", index=True)
+    currency: Mapped[str] = mapped_column(String(8), default="BRL", index=True)
+    current_balance: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0)
+    initial_capital: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0)
+    realized_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0)
+    open_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0)
+    total_pnl: Mapped[Decimal] = mapped_column(Numeric(18, 2), default=0)
+    total_pnl_pct: Mapped[Decimal] = mapped_column(Numeric(10, 4), default=0)
+    source_payload_json: Mapped[str] = mapped_column(Text, default="{}")
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
 class DataEvidenceLedger(Base):
     __tablename__ = "data_evidence_ledger"
 

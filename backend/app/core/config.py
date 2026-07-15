@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     trading_desk_integration_key: str = ""
     trading_desk_timeout_seconds: float = 4.0
     trading_desk_local_path: str = ""
+    trading_desk_snapshot_owner_email: str = ""
     alpha_copilot_ai_enabled: bool = False
     alpha_copilot_provider: str = "openai"
     alpha_copilot_model: str = "gpt-4o-mini"

@@ -6,8 +6,14 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.services.external_integrations import (
+    TRADING_DESK_INTEGRATION_KEY,
+    get_latest_external_integration_snapshot,
+    trading_desk_summary_from_snapshot,
+)
 
 
 def _number(value: Any) -> float:
@@ -131,14 +137,36 @@ def get_trading_desk_local_summary() -> dict | None:
     )
 
 
-def get_trading_desk_summary(client: httpx.Client | None = None) -> dict:
+def _saved_snapshot_summary(db: Session | None, user_id: str | None) -> dict | None:
+    if db is None:
+        return None
+    snapshot = get_latest_external_integration_snapshot(
+        db,
+        integration_key=TRADING_DESK_INTEGRATION_KEY,
+        user_id=user_id,
+    )
+    return trading_desk_summary_from_snapshot(snapshot) if snapshot else None
+
+
+def get_trading_desk_summary(
+    client: httpx.Client | None = None,
+    *,
+    db: Session | None = None,
+    user_id: str | None = None,
+) -> dict:
     settings = get_settings()
     if not settings.trading_desk_enabled:
+        snapshot_summary = _saved_snapshot_summary(db, user_id)
+        if snapshot_summary is not None:
+            return snapshot_summary
         return empty_trading_desk_summary(status="disabled")
     if not settings.trading_desk_integration_key:
         local_summary = get_trading_desk_local_summary()
         if local_summary is not None:
             return local_summary
+        snapshot_summary = _saved_snapshot_summary(db, user_id)
+        if snapshot_summary is not None:
+            return snapshot_summary
         return empty_trading_desk_summary(status="missing_key", message="TRADING_DESK_INTEGRATION_KEY nao configurada.")
 
     base_url = settings.trading_desk_api_url.rstrip("/")
@@ -153,6 +181,9 @@ def get_trading_desk_summary(client: httpx.Client | None = None) -> dict:
             local_summary = get_trading_desk_local_summary()
             if local_summary is not None:
                 return local_summary
+            snapshot_summary = _saved_snapshot_summary(db, user_id)
+            if snapshot_summary is not None:
+                return snapshot_summary
             return empty_trading_desk_summary(status="unauthorized", message="Chave de integracao recusada pelo Trading Desk.")
         response.raise_for_status()
         payload = response.json()
@@ -160,16 +191,25 @@ def get_trading_desk_summary(client: httpx.Client | None = None) -> dict:
         local_summary = get_trading_desk_local_summary()
         if local_summary is not None:
             return local_summary
+        snapshot_summary = _saved_snapshot_summary(db, user_id)
+        if snapshot_summary is not None:
+            return snapshot_summary
         return empty_trading_desk_summary(status="timeout", message="Trading Desk nao respondeu dentro do tempo limite.")
     except httpx.HTTPError as exc:
         local_summary = get_trading_desk_local_summary()
         if local_summary is not None:
             return local_summary
+        snapshot_summary = _saved_snapshot_summary(db, user_id)
+        if snapshot_summary is not None:
+            return snapshot_summary
         return empty_trading_desk_summary(status="unavailable", message=str(exc)[:240])
     except ValueError:
         local_summary = get_trading_desk_local_summary()
         if local_summary is not None:
             return local_summary
+        snapshot_summary = _saved_snapshot_summary(db, user_id)
+        if snapshot_summary is not None:
+            return snapshot_summary
         return empty_trading_desk_summary(status="invalid_payload", message="Trading Desk retornou JSON invalido.")
     finally:
         if owns_client:

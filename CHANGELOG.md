@@ -2,6 +2,14 @@
 
 ## 2026-07-15
 
+- Criado `External Integration Snapshot Bridge` para o Trading Desk EV+, usando o mesmo Supabase/PostgreSQL da Carteira Alpha.
+- Criada migration aditiva `backend/alembic/versions/20260715_0020_external_integration_snapshots.py`, com rollback seguro.
+- Adicionado modelo `ExternalIntegrationSnapshot` e service `backend/app/services/external_integrations.py`.
+- Criada rota segura `POST /api/integrations/trading-desk/snapshot`, protegida por `X-Integration-Key`.
+- `get_trading_desk_summary` agora usa o ultimo snapshot salvo no Supabase como fallback quando a API local do Trading Desk nao esta acessivel.
+- A Visao Geral pode exibir/somar o ultimo saldo conhecido do Trading Desk mesmo em ambiente online Render/Vercel.
+- Criado sincronizador local `sync_carteira_alpha_snapshot.py` no Trading Desk EV+ e acoplado ao inicializador em background.
+- Criados testes `backend/tests/test_external_integration_snapshots.py` e `Trading Desk EV+/tests/test_carteira_alpha_snapshot_sync.py`.
 - Executada migracao real do SQLite local para Supabase PostgreSQL via Session Pooler.
 - Confirmado que senha do Supabase com `@` precisa estar URL-encoded dentro de `DATABASE_URL`.
 - Corrigida migration `20260714_0018_billing_payment_gateway.py` para usar `sa.false()` em coluna booleana, compatibilizando o schema com PostgreSQL.

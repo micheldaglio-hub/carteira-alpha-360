@@ -11,7 +11,7 @@ from app.core.config import get_settings
 from app.core.observability import configure_logging, logger, observability_state
 from app.core.runtime_safety import assert_runtime_safe, is_production, runtime_safety_findings
 from app.database import Base, SessionLocal, engine
-from app.routers import billing, distribution, alerts, auth, crypto, dashboard, intelligence, model_portfolios, ops, portfolio, premium, projections, radar, rebalance, settings, wealth_os
+from app.routers import billing, distribution, alerts, auth, crypto, dashboard, integrations, intelligence, model_portfolios, ops, portfolio, premium, projections, radar, rebalance, settings, wealth_os
 from app.seed import seed_demo_data
 from app.services.audit import write_audit_event_best_effort
 from app.services.job_runner import scheduler
@@ -54,6 +54,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(billing.router, prefix="/api")
 app.include_router(distribution.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(integrations.router, prefix="/api")
 app.include_router(intelligence.router, prefix="/api")
 app.include_router(crypto.router, prefix="/api")
 app.include_router(model_portfolios.router, prefix="/api")
