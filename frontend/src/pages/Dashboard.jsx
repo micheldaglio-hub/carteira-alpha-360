@@ -64,8 +64,8 @@ const buildCommandFallback = (metrics, intelligence) => {
   const progress = (target) => Math.min(100, Math.max(0, total / target * 100));
   return {
     greeting: intelligence?.greeting || "",
-    mission: "Missao atual: manter o centro de comando ativo enquanto os motores sincronizam.",
-    headline: "Fallback operacional com patrimonio, metas e confiabilidade basica. A API completa sera usada automaticamente quando responder.",
+    mission: "Missão atual: manter o centro de comando ativo enquanto os motores sincronizam.",
+    headline: "Fallback operacional com patrimônio, metas e confiabilidade básica. A API completa será usada automaticamente quando responder.",
     wealthProgressScore: {
       score: Number(intelligence?.scoreAlpha || 0),
       status: "sincronizando",
@@ -260,18 +260,30 @@ export default function Dashboard({ token }) {
   const positive = metrics.pnl >= 0;
   const tradingDesk = data.externalIntegrations?.tradingDesk;
   const tradingDeskConnected = Boolean(tradingDesk?.connected);
-  const tradingDeskEnabled = Boolean(tradingDesk?.enabled);
+  const tradingDeskVisible = Boolean(tradingDesk);
+  const tradingDeskStatusMessage = (() => {
+    if (tradingDeskConnected) {
+      if (tradingDesk.initialCapital > 0) {
+        return `P/L ${currency.format(tradingDesk.totalPnl)} sobre capital de ${currency.format(tradingDesk.initialCapital)}.`;
+      }
+      return `P/L ${currency.format(tradingDesk.totalPnl)}.`;
+    }
+    if (tradingDesk?.status === "disabled") {
+      return "Integração não configurada neste ambiente.";
+    }
+    return tradingDesk?.message || "Integração configurada, mas sem resposta agora.";
+  })();
   const wealthCommand = commandCenter || intelligence?.commandCenter || buildCommandFallback(metrics, intelligence);
 
   return (
     <div className="space-y-5">
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand">Visao geral</p>
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand">Visão geral</p>
           <h2 className="text-2xl font-semibold text-stone-950">Painel institucional da carteira</h2>
         </div>
         <p className="max-w-2xl text-sm leading-6 text-stone-500">
-          Metricas calculadas sobre posicoes, proventos e snapshots de mercado. Projecoes sao cenarios ajustaveis, nao promessa de resultado.
+          Métricas calculadas sobre posições, proventos e snapshots de mercado. Projeções são cenários ajustáveis, não promessa de resultado.
         </p>
       </header>
 
@@ -367,7 +379,7 @@ export default function Dashboard({ token }) {
               <span className="brand-badge">
                 <ShieldCheck size={15} />
               </span>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Oportunidades e Confianca</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand">Oportunidades e Confiança</p>
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-1">
               {(wealthCommand.opportunities || []).slice(0, 2).map((item) => (
@@ -395,11 +407,11 @@ export default function Dashboard({ token }) {
         </section>
       ) : null}
 
-      <section className={`grid gap-3 md:grid-cols-2 ${tradingDeskEnabled ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
+      <section className={`grid gap-3 md:grid-cols-2 ${tradingDeskVisible ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
         <StatCard
-          label="Patrimonio total"
+          label="Patrimônio total"
           value={currency.format(metrics.totalEquity)}
-          hint={metrics.externalEquity > 0 ? `Inclui ${currency.format(metrics.externalEquity)} de integracoes externas.` : "Valor atual estimado dos ativos."}
+          hint={metrics.externalEquity > 0 ? `Inclui ${currency.format(metrics.externalEquity)} de integrações externas.` : "Valor atual estimado dos ativos."}
           icon={Wallet}
           tone="amber"
           compact
@@ -412,7 +424,7 @@ export default function Dashboard({ token }) {
         <StatCard
           label="P/L total"
           value={currency.format(metrics.pnl)}
-          hint={`${positive ? "Ganho" : "Perda"} de ${pct(metrics.pnlPct)} em acoes, cripto e integracoes.`}
+          hint={`${positive ? "Ganho" : "Perda"} de ${pct(metrics.pnlPct)} em ações, cripto e integrações.`}
           icon={Activity}
           tone={positive ? "emerald" : "rose"}
           compact
@@ -420,17 +432,11 @@ export default function Dashboard({ token }) {
           evidenceDomain="dashboard"
           evidenceField="pnl"
         />
-        {tradingDeskEnabled ? (
+        {tradingDeskVisible ? (
           <StatCard
             label="Trading Desk EV+"
             value={tradingDeskConnected ? currency.format(tradingDesk.currentBalance) : "Indisponivel"}
-            hint={
-              tradingDeskConnected
-                ? tradingDesk.initialCapital > 0
-                  ? `P/L ${currency.format(tradingDesk.totalPnl)} sobre capital de ${currency.format(tradingDesk.initialCapital)}.`
-                  : `P/L ${currency.format(tradingDesk.totalPnl)}.`
-                : tradingDesk.message || "Integracao configurada, mas sem resposta agora."
-            }
+            hint={tradingDeskStatusMessage}
             icon={LineChart}
             tone={tradingDeskConnected && tradingDesk.totalPnl >= 0 ? "emerald" : "rose"}
             compact
@@ -443,7 +449,7 @@ export default function Dashboard({ token }) {
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold text-stone-950">Evolucao patrimonial</h3>
-              <p className="text-xs text-stone-500">Patrimonio estimado versus capital investido.</p>
+              <p className="text-xs text-stone-500">Patrimônio estimado versus capital investido.</p>
             </div>
             <LineChart size={19} className="text-amber-700" />
           </div>
@@ -467,7 +473,7 @@ export default function Dashboard({ token }) {
                   wrapperClassName="chart-tooltip-wrapper"
                 />
                 <Legend />
-                <Area type="monotone" dataKey="equity" name="Patrimonio" stroke="var(--primary)" fill="url(#equity)" strokeWidth={2} />
+                <Area type="monotone" dataKey="equity" name="Patrimônio" stroke="var(--primary)" fill="url(#equity)" strokeWidth={2} />
                 <Area type="monotone" dataKey="invested" name="Investido" stroke="var(--info)" fill="transparent" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -519,9 +525,9 @@ export default function Dashboard({ token }) {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="surface p-4 sm:col-span-2">
-            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-brand">Premissas das projecoes</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-brand">Premissas das projeções</h3>
             <p className="mt-2 text-xs leading-5 text-stone-500">
-              Usa seu patrimonio atual como ponto de partida. Ajuste aporte e retorno para o seu cenario.
+              Usa seu patrimônio atual como ponto de partida. Ajuste aporte e retorno para o seu cenário.
             </p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
               <label className="block">
@@ -547,7 +553,7 @@ export default function Dashboard({ token }) {
               </label>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button type="button" onClick={saveProjectionScenario} className="btn-secondary h-9 px-3 text-xs" title="Salvar premissas do relatorio">
+              <button type="button" onClick={saveProjectionScenario} className="btn-secondary h-9 px-3 text-xs" title="Salvar premissas do relatório">
                 <Save size={15} />
                 {projectionSaving ? "Salvando" : "Salvar"}
               </button>
@@ -564,8 +570,8 @@ export default function Dashboard({ token }) {
             evidenceDomain="dashboard"
             evidenceField="projectedPassiveIncome"
           />
-          <StatCard label="Projecao em 10 anos" value={compactCurrency.format(dashboardProjection?.ten ?? metrics.projection10y)} hint="Cenario com as premissas informadas acima." icon={TrendingUp} tone="emerald" token={token} evidenceDomain="dashboard" evidenceField="projection10y" />
-          <StatCard label="Projecao em 30 anos" value={compactCurrency.format(dashboardProjection?.thirty ?? metrics.projection30y)} hint="Resultado nominal do cenario informado acima." icon={TrendingUp} tone="sky" token={token} evidenceDomain="dashboard" evidenceField="projection30y" />
+          <StatCard label="Projeção em 10 anos" value={compactCurrency.format(dashboardProjection?.ten ?? metrics.projection10y)} hint="Cenário com as premissas informadas acima." icon={TrendingUp} tone="emerald" token={token} evidenceDomain="dashboard" evidenceField="projection10y" />
+          <StatCard label="Projeção em 30 anos" value={compactCurrency.format(dashboardProjection?.thirty ?? metrics.projection30y)} hint="Resultado nominal do cenário informado acima." icon={TrendingUp} tone="sky" token={token} evidenceDomain="dashboard" evidenceField="projection30y" />
         </div>
       </section>
     </div>
