@@ -111,7 +111,7 @@ def upgrade() -> None:
         sa.Column("event_id", sa.String(length=160), nullable=False, server_default=""),
         sa.Column("event_type", sa.String(length=120), nullable=False, server_default=""),
         sa.Column("status", sa.String(length=32), nullable=False, server_default="received"),
-        sa.Column("signature_valid", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("signature_valid", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("checkout_session_id", sa.String(length=32), nullable=True),
         sa.Column("transaction_id", sa.String(length=32), nullable=True),
         sa.Column("raw_payload_json", sa.Text(), nullable=False, server_default="{}"),

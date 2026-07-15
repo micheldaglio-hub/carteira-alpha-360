@@ -66,6 +66,31 @@ O Carteira Alpha 360 e uma plataforma SaaS web para acompanhamento e analise de 
 - Jobs automaticos de dados, com sincronizacao de ativos do usuario, revisao das carteiras recomendadas, refresh Macro/FX e auditoria financeira recorrente.
 - Alpha Premium Research como vertical futura de research, carteira-modelo, edicao mensal, newsletter, PDF/web, assinatura, historico auditavel e publicacao com aprovacao humana.
 
+## Atualizacao 2026-07-15 - Supabase PostgreSQL real
+
+Arquivos principais:
+
+- `scripts/migrate-to-supabase.ps1`
+- `scripts/migrate_sqlite_to_postgres.py`
+- `backend/alembic/versions/20260714_0018_billing_payment_gateway.py`
+- `docs/SUPABASE_POSTGRES_MIGRATION.md`
+
+O projeto foi validado contra Supabase PostgreSQL usando o Session Pooler. O Direct Connection do projeto Supabase pode falhar em redes sem IPv6 completo; por isso, para Render e ambientes persistentes sem IPv6 direto confirmado, a URL recomendada e a do Session Pooler com `sslmode=require`.
+
+Resultado validado:
+
+- Alembic aplicado ate `20260714_0019`.
+- Banco local migrado de `backend/carteira_alpha.db` para Supabase PostgreSQL.
+- `Financial Formula Auditor` executado no destino com status `pass` e score `100.0`.
+- O migrador passou a pular registros historicos orfaos que violam chaves estrangeiras no PostgreSQL, registrando `skipped_rows` e `skipped_by_fk` no relatorio.
+- Na primeira migracao real foram pulados 30 registros antigos de `asset_facts` sem ativo correspondente em `assets`.
+
+Configuracao de producao recomendada no Render:
+
+- `DATABASE_URL`: connection string do Supabase Session Pooler com senha URL-encoded.
+- `DATABASE_AUTO_CREATE_TABLES=false`
+- `SEED_DEMO_DATA=false`
+
 ## Atualizacao 2026-07-15 - Acesso LAN definitivo
 
 Arquivos principais:

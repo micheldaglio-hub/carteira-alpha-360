@@ -6,7 +6,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import create_engine, delete, func, select
+from collections import Counter
+
+from sqlalchemy import create_engine, delete, select
 from sqlalchemy.engine import Engine
 
 
@@ -55,15 +57,25 @@ def main() -> int:
     if args.apply and args.truncate:
         _truncate_target(target, tables)
 
+    copied_primary_keys: dict[str, dict[str, set[Any]]] = {}
+
     for table in tables:
         rows = _fetch_rows(source, table)
-        item = {"table": table.name, "rows": len(rows), "status": "planned"}
+        rows, skipped_by_fk = _filter_rows_with_missing_parents(source, table, rows, copied_primary_keys)
+        item = {
+            "table": table.name,
+            "rows": len(rows),
+            "skipped_rows": sum(skipped_by_fk.values()),
+            "skipped_by_fk": dict(skipped_by_fk),
+            "status": "planned",
+        }
         if args.apply and rows:
             with target.begin() as connection:
                 connection.execute(table.insert(), rows)
             item["status"] = "copied"
         elif args.apply:
             item["status"] = "empty"
+        _remember_primary_keys(table, rows, copied_primary_keys)
         report["tables"].append(item)
 
     print(json.dumps(report, indent=2, ensure_ascii=False, default=str))
@@ -101,6 +113,56 @@ def _fetch_rows(engine: Engine, table) -> list[dict[str, Any]]:
         if not engine.dialect.has_table(connection, table.name):
             return []
         return [dict(row._mapping) for row in connection.execute(select(table)).all()]
+
+
+def _filter_rows_with_missing_parents(
+    source: Engine,
+    table,
+    rows: list[dict[str, Any]],
+    copied_primary_keys: dict[str, dict[str, set[Any]]],
+) -> tuple[list[dict[str, Any]], Counter[str]]:
+    skipped_by_fk: Counter[str] = Counter()
+    filtered = rows
+
+    for foreign_key in table.foreign_keys:
+        local_column = foreign_key.parent
+        parent_column = foreign_key.column
+        parent_table = parent_column.table
+        parent_values = copied_primary_keys.get(parent_table.name, {}).get(parent_column.name)
+        if parent_values is None:
+            parent_values = _fetch_parent_values(source, parent_table, parent_column)
+
+        next_rows: list[dict[str, Any]] = []
+        fk_label = f"{local_column.name}->{parent_table.name}.{parent_column.name}"
+        for row in filtered:
+            value = row.get(local_column.name)
+            if value is None or value in parent_values:
+                next_rows.append(row)
+            else:
+                skipped_by_fk[fk_label] += 1
+        filtered = next_rows
+
+    return filtered, skipped_by_fk
+
+
+def _fetch_parent_values(source: Engine, parent_table, parent_column) -> set[Any]:
+    with source.connect() as connection:
+        if not source.dialect.has_table(connection, parent_table.name):
+            return set()
+        return {row[0] for row in connection.execute(select(parent_column)).all()}
+
+
+def _remember_primary_keys(
+    table,
+    rows: list[dict[str, Any]],
+    copied_primary_keys: dict[str, dict[str, set[Any]]],
+) -> None:
+    primary_columns = list(table.primary_key.columns)
+    if not primary_columns:
+        return
+    table_keys = copied_primary_keys.setdefault(table.name, {})
+    for column in primary_columns:
+        table_keys[column.name] = {row[column.name] for row in rows if row.get(column.name) is not None}
 
 
 def _truncate_target(engine: Engine, tables) -> None:

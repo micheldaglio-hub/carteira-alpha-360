@@ -2,6 +2,11 @@
 
 ## 2026-07-15
 
+- Executada migracao real do SQLite local para Supabase PostgreSQL via Session Pooler.
+- Confirmado que senha do Supabase com `@` precisa estar URL-encoded dentro de `DATABASE_URL`.
+- Corrigida migration `20260714_0018_billing_payment_gateway.py` para usar `sa.false()` em coluna booleana, compatibilizando o schema com PostgreSQL.
+- Fortalecido `scripts/migrate_sqlite_to_postgres.py` para validar chaves estrangeiras antes da copia, pular linhas historicas orfas e registrar `skipped_rows`/`skipped_by_fk`.
+- Copia validada com `-Apply -Truncate`: Alembic em `20260714_0019`, 30 `asset_facts` orfaos pulados e `Financial Formula Auditor` com `pass` / score `100.0`.
 - Corrigida integração Frontend -> Backend em produção: `VITE_API_URL` permanece apontando para a origem do Render sem `/api`, e `frontend/src/lib/api.js` agora adiciona o prefixo `/api` automaticamente sem duplicar.
 - Confirmado em produção que `POST https://carteira-alpha-360.onrender.com/api/auth/register` responde na rota correta, enquanto a chamada antiga sem `/api` retornava `404`.
 - Unificada a fórmula de rentabilidade mensal de ações entre o card superior da Minha Carteira e o backtest mensal: ambos agora usam a base do fechamento/marcação do mês anterior até o preço atual, evitando diferença como 4,81% vs 4,33%.
