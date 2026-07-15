@@ -100,6 +100,25 @@ Limite externo:
 
 - Se outro Wi-Fi da casa estiver atras de um segundo roteador em sub-rede diferente ou com isolamento de clientes, o PC pode estar correto e ainda assim o outro dispositivo nao acessa. Nesse caso, a solucao e configurar o segundo roteador como Bridge/AP ou liberar comunicacao entre sub-redes.
 
+## Atualização 2026-07-15 - Integração online Vercel -> Render
+
+Arquivos principais:
+
+- `frontend/src/lib/api.js`
+- `frontend/.env.example`
+
+Decisão:
+
+- O frontend aceita `VITE_API_URL` como origem do backend, por exemplo `https://carteira-alpha-360.onrender.com`.
+- O prefixo `/api` é adicionado automaticamente por `buildApiUrl`.
+- Se algum endpoint for chamado já com `/api`, o helper remove o prefixo duplicado antes de montar a URL final.
+- A regra preserva o funcionamento local e corrige produção, onde a chamada antiga para `/auth/register` retornava `404`.
+
+Critério técnico:
+
+- `buildApiUrl("/auth/register", "https://carteira-alpha-360.onrender.com")` gera `https://carteira-alpha-360.onrender.com/api/auth/register`.
+- `buildApiUrl("/api/auth/me", "https://carteira-alpha-360.onrender.com")` gera `https://carteira-alpha-360.onrender.com/api/auth/me`.
+
 ## Atualizacao 2026-07-15 - Login sem scroll inicial
 
 Arquivos principais:
@@ -123,6 +142,54 @@ Validacao visual:
 - `1366x720`: `scrollHeight` igual ao `innerHeight`.
 - `1280x720`: `scrollHeight` igual ao `innerHeight`.
 - `390x844`: `scrollHeight` igual ao `innerHeight`.
+
+## Atualizacao 2026-07-15 - Revisao ortografica da UI
+
+Arquivos principais:
+
+- `frontend/src/pages/Login.jsx`
+- `frontend/src/components/Sidebar.jsx`
+- `frontend/src/components/StatCard.jsx`
+- `frontend/src/pages/Dashboard.jsx`
+- `frontend/src/pages/Portfolio.jsx`
+- `frontend/src/pages/Projections.jsx`
+- `frontend/src/pages/Crypto.jsx`
+- `frontend/src/pages/Radar.jsx`
+- `frontend/src/pages/StressTest.jsx`
+- `frontend/src/pages/ModelPortfolios.jsx`
+- `frontend/src/pages/PremiumResearch.jsx`
+- `frontend/src/pages/PremiumSubscriber.jsx`
+- `frontend/src/pages/Copilot.jsx`
+- `frontend/src/pages/Alerts.jsx`
+
+Decisao:
+
+- Textos visiveis do frontend foram revisados para uso correto de acentos em portugues.
+- Exemplos corrigidos: `patrimônio`, `decisões`, `evidências`, `confiança`, `projeções`, `ações`, `segurança`, `usuário`, `relatório`, `comitê`, `edição` e `não`.
+- Chaves internas como `patrimonio` e valores tecnicos de payload como `asset_class: "Acoes"` foram preservados para nao quebrar compatibilidade de dados.
+- Build e E2E passaram apos a revisao.
+
+## Atualização 2026-07-15 - Fórmula única de rentabilidade mensal de ações
+
+Arquivos principais:
+
+- `backend/app/services/portfolio.py`
+- `backend/app/services/portfolio_backtest.py`
+- `backend/tests/test_portfolio_summary.py`
+- `frontend/src/pages/Portfolio.jsx`
+
+Decisão:
+
+- O card superior `Rent. ações no mês` e o gráfico `Retorno mês a mês` do backtest passam a usar a mesma janela de cálculo.
+- A base mensal é o primeiro preço disponível a partir do fechamento/marcação do último dia do mês anterior.
+- O preço final é o preço atual do ativo no sistema.
+- Fórmula: `(valor atual das ações / valor base das ações - 1) * 100`.
+- A regra evita divergências visuais entre o card superior e a barra do mês atual no backtest.
+
+Impacto esperado:
+
+- Quando o backtest estiver filtrado até a data atual e a visão selecionada for `Ações`, o retorno do mês exibido no tooltip deve bater com o card superior de rentabilidade mensal das ações.
+- Se o usuário selecionar uma data final antiga no backtest, o gráfico mostrará o retorno até aquela data histórica, enquanto o card superior continua mostrando o mês corrente até hoje.
 
 ## Atualizacao 2026-07-15 - Polimento final da landing institucional de login
 

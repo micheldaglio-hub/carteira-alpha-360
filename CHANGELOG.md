@@ -2,6 +2,12 @@
 
 ## 2026-07-15
 
+- Corrigida integração Frontend -> Backend em produção: `VITE_API_URL` permanece apontando para a origem do Render sem `/api`, e `frontend/src/lib/api.js` agora adiciona o prefixo `/api` automaticamente sem duplicar.
+- Confirmado em produção que `POST https://carteira-alpha-360.onrender.com/api/auth/register` responde na rota correta, enquanto a chamada antiga sem `/api` retornava `404`.
+- Unificada a fórmula de rentabilidade mensal de ações entre o card superior da Minha Carteira e o backtest mensal: ambos agora usam a base do fechamento/marcação do mês anterior até o preço atual, evitando diferença como 4,81% vs 4,33%.
+- Ajustados textos visíveis da Minha Carteira relacionados a preço, mês, prejuízo, classificação e leitura do retorno mensal.
+
+- Corrigida acentuação de textos visíveis no frontend, incluindo landing de login, menu lateral, Visão Geral, Minha Carteira, Projeções, Cripto, Radar, Stress Test e áreas premium.
 - Compactada a landing de login para caber sem scroll inicial em notebooks/desktops baixos e celular, com regras responsivas por altura de viewport.
 - Corrigido acesso LAN para celular/outros computadores: CORS local agora aceita hostname da maquina, scripts de firewall LAN foram adicionados e o inicializador passou a gerar diagnostico/URLs automaticamente.
 - Criados `INICIAR_CARTEIRA_ALPHA_REDE.bat`, `CONFIGURAR_ACESSO_REDE_ADMIN.bat`, `DIAGNOSTICAR_ACESSO_REDE.bat`, `scripts/ensure-lan-firewall.ps1`, `scripts/check-lan-access.ps1` e `docs/ACESSO_REDE_LOCAL.md`.
