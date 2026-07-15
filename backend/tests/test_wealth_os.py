@@ -109,6 +109,18 @@ class WealthOsTests(unittest.TestCase):
         self.assertTrue(answer["dataUsed"])
         self.assertNotIn("compre agora", answer["answer"].lower())
 
+    def test_copilot_chat_turns_cash_question_into_allocation_plan(self) -> None:
+        answer = ask_copilot(self.db, self.user.id, "tenho 1000 reais, o que devo comprar?")
+
+        self.assertEqual(answer["mode"], "deterministic")
+        self.assertIn("Plano de aporte", answer["answer"])
+        self.assertIn("R$ 1.000,00", answer["answer"])
+        self.assertIn("ações Brasil", answer["answer"])
+        self.assertIn("FIIs", answer["answer"])
+        self.assertIn("exposição global", answer["answer"])
+        self.assertNotIn("[S", answer["answer"])
+        self.assertTrue(answer["citations"])
+
     def test_copilot_status_defaults_to_safe_fallback(self) -> None:
         status = copilot_status()
 

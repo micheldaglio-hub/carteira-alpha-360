@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import httpx
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.models import UserPreference
+from app.services.alpha_b3_screener import run_alpha_b3_screener
+from app.services.alpha_crypto_screener import SCREENER_CACHE_PREFIX, run_alpha_crypto_screener
+from app.services.alpha_fii_screener import run_alpha_fii_screener
+from app.services.alpha_global_equity_screener import run_alpha_global_equity_screener
 from app.services.portfolio_aggregation import build_user_portfolio_snapshot
 from app.services.portfolio import get_dashboard, get_positions
 from app.wealth_os.contracts import CopilotChatResponse, CopilotCitation, CopilotQuestion, to_dict
@@ -152,8 +159,12 @@ def ask_copilot(db: Session, user_id: str, message: str, conversation_id: str | 
     settings = get_settings()
     warnings: list[str] = []
     provider_payload: dict[str, Any] | None = None
+    allocation_request = _is_allocation_request(normalized_message)
 
-    if _ai_available(settings):
+    if allocation_request:
+        _attach_allocation_models(context, db, user_id)
+
+    if _ai_available(settings) and not allocation_request:
         try:
             provider_payload = _ask_llm(settings, normalized_message, context)
         except Exception as exc:  # pragma: no cover - exact provider failures vary.
@@ -220,6 +231,7 @@ def build_copilot_context(db: Session, user_id: str) -> dict:
             "scenarios": [asdict(item) for item in stress.scenarios[:5]],
         },
         "economicReadings": [asdict(item) for item in economic[:5]],
+        "allocationModels": {},
     }
     context["sources"] = _build_sources(context)
     return context
@@ -353,6 +365,45 @@ def _build_sources(context: dict) -> list[dict]:
         value=json.dumps(context["dataConfidence"], ensure_ascii=False),
         confidence="alta",
     )
+    models = context.get("allocationModels") or {}
+    if models:
+        b3_assets = ((models.get("b3") or {}).get("portfolio") or [])[:5]
+        fii_assets = ((models.get("fii") or {}).get("portfolio") or [])[:3]
+        global_assets = ((models.get("global") or {}).get("portfolio") or [])[:3]
+        crypto = models.get("crypto") or {}
+        add(
+            "Carteira Recomendada Alpha",
+            "recommended_portfolio_engine",
+            "allocationModels.b3.portfolio",
+            "Nucleo Brasil: " + ", ".join(_asset_label(item) for item in b3_assets),
+            value=json.dumps(b3_assets, ensure_ascii=False),
+            confidence="media",
+        )
+        add(
+            "Carteira Alpha FIIs",
+            "alpha_fii_screener",
+            "allocationModels.fii.portfolio",
+            "FIIs em estudo: " + ", ".join(_asset_label(item) for item in fii_assets),
+            value=json.dumps(fii_assets, ensure_ascii=False),
+            confidence="media",
+        )
+        add(
+            "Carteira Alpha Global",
+            "alpha_global_screener",
+            "allocationModels.global.portfolio",
+            "Exposicao internacional: " + ", ".join(_asset_label(item) for item in global_assets),
+            value=json.dumps(global_assets, ensure_ascii=False),
+            confidence="media",
+        )
+        if crypto.get("ticker"):
+            add(
+                "Cripto do mes",
+                "crypto_research_engine",
+                "allocationModels.crypto",
+                f"{crypto.get('ticker')} - {crypto.get('name')} | {crypto.get('decisionLabel') or crypto.get('title')}",
+                value=json.dumps(crypto, ensure_ascii=False),
+                confidence="media" if crypto.get("dataMode") == "live" else "baixa",
+            )
     return sources
 
 
@@ -416,6 +467,7 @@ def _context_for_prompt(context: dict, max_chars: int) -> dict:
         "stressTest": context["stressTest"],
         "economicReadings": context["economicReadings"],
         "dataConfidence": context["dataConfidence"],
+        "allocationModels": context.get("allocationModels") or {},
         "sources": context["sources"],
     }
     serialized = json.dumps(prompt_context, ensure_ascii=False)
@@ -463,7 +515,10 @@ def _deterministic_response(message: str, context: dict, warnings: list[str]) ->
     text = message.lower()
     summary = context["summary"]
     citations = _select_citations(context, ["S1", "S3", "S4", "S5", "S7", "S9"])
-    if any(term in text for term in ["liberdade", "aposent", "renda passiva", "meta"]):
+    if _is_allocation_request(message):
+        citations = _allocation_citations(context)
+        answer = _build_allocation_answer(message, context)
+    elif any(term in text for term in ["liberdade", "aposent", "renda passiva", "meta"]):
         citations = _select_citations(context, ["S1", "S2", "S4", "S5", "S10"])
         passive_goal = next((item for item in context["goals"] if item.get("id") == "passive_income"), None)
         current_income = as_float(summary.get("projectedPassiveIncome"))
@@ -546,6 +601,184 @@ def _deterministic_response(message: str, context: dict, warnings: list[str]) ->
         warnings=warnings + ["Resposta gerada sem LLM externo; usei apenas os dados internos consolidados."],
         dataUsed=sorted({item.dataPath for item in citations}),
     )
+
+
+def _is_allocation_request(message: str) -> bool:
+    text = message.lower()
+    money_terms = ["real", "reais", "r$", "dinheiro", "aporte", "aportar", "investir", "tenho"]
+    action_terms = ["compr", "aportar", "invisto", "investir", "alocar", "colocar", "onde"]
+    return any(term in text for term in money_terms) and any(term in text for term in action_terms)
+
+
+def _attach_allocation_models(context: dict, db: Session, user_id: str) -> None:
+    if context.get("allocationModels"):
+        return
+    context["allocationModels"] = _safe_allocation_models(db, user_id)
+    context["sources"] = _build_sources(context)
+
+
+def _safe_allocation_models(db: Session, user_id: str) -> dict:
+    crypto = _load_cached_crypto_study(db, user_id) or run_alpha_crypto_screener(None, None)
+    return {
+        "b3": run_alpha_b3_screener(None, refresh_market=False),
+        "fii": run_alpha_fii_screener(None, refresh_market=False),
+        "global": run_alpha_global_equity_screener(None, refresh_market=False),
+        "crypto": crypto,
+    }
+
+
+def _load_cached_crypto_study(db: Session, user_id: str) -> dict | None:
+    key = f"{SCREENER_CACHE_PREFIX}:{date.today():%Y-%m}"
+    preference = (
+        db.execute(select(UserPreference).where(UserPreference.user_id == user_id, UserPreference.key == key))
+        .scalars()
+        .first()
+    )
+    if not preference or not preference.value_json:
+        return None
+    try:
+        payload = json.loads(preference.value_json)
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _build_allocation_answer(message: str, context: dict) -> str:
+    amount = _extract_brl_amount(message) or 1000.0
+    snapshot = context.get("portfolioSnapshot") or {}
+    exposures = snapshot.get("exposures") or {}
+    fixed_income_pct = as_float(exposures.get("fixedIncomePct"))
+    crypto_pct = as_float(exposures.get("cryptoPct"))
+    global_pct = as_float(exposures.get("globalPct"))
+    models = context.get("allocationModels") or {}
+    b3_assets = _top_assets((models.get("b3") or {}).get("portfolio") or [], 4)
+    fii_assets = _top_assets((models.get("fii") or {}).get("portfolio") or [], 2)
+    global_assets = _top_assets((models.get("global") or {}).get("portfolio") or [], 2)
+    crypto = models.get("crypto") or {}
+    buckets = _allocation_buckets(amount, fixed_income_pct, crypto_pct, global_pct)
+
+    lines = [
+        f"Michel, para um aporte de {_brl(amount)} hoje, minha prioridade seria reduzir a concentração em renda fixa e aumentar os blocos que o Alpha monitora para crescimento patrimonial.",
+        "",
+        "Plano de aporte sugerido pelo Alpha:",
+    ]
+    if buckets.get("acoes_brasil", 0) > 0:
+        lines.append(
+            f"- {_brl(buckets['acoes_brasil'])} em ações Brasil do núcleo Alpha: {_asset_list(b3_assets)}. "
+            "Aqui eu priorizaria empresas perenes, caixa forte, setores essenciais e boa leitura de proventos."
+        )
+    if buckets.get("fiis", 0) > 0:
+        lines.append(
+            f"- {_brl(buckets['fiis'])} em FIIs para renda imobiliária: {_asset_list(fii_assets)}. "
+            "Esse bloco ajuda a criar renda mensal e diversificar fora de empresa operacional."
+        )
+    if buckets.get("global", 0) > 0:
+        lines.append(
+            f"- {_brl(buckets['global'])} em exposição global: {_asset_list(global_assets)}. "
+            "A função aqui é tirar parte do patrimônio do risco Brasil e adicionar dólar/empresas globais."
+        )
+    if buckets.get("cripto", 0) > 0 and crypto.get("ticker"):
+        lines.append(
+            f"- {_brl(buckets['cripto'])} em cripto controlado: {crypto.get('ticker')} ({crypto.get('name')}). "
+            f"É a parcela de assimetria, com risco extremo e tamanho pequeno. Leitura atual: {crypto.get('decisionLabel') or 'candidata do mês'}."
+        )
+    if buckets.get("reserva", 0) > 0:
+        lines.append(f"- {_brl(buckets['reserva'])} manteria em caixa/renda fixa para oportunidade e segurança.")
+
+    lines.extend(
+        [
+            "",
+            f"Por que eu não colocaria tudo no RDB agora: a carteira já está com {fixed_income_pct:.2f}% em renda fixa. Ela é excelente como base de segurança, mas o próximo R$ 1.000 pode trabalhar melhor corrigindo a falta de ações, FIIs, global e cripto controlado.",
+            f"Controle de risco: cripto hoje está em {crypto_pct:.2f}% e global em {global_pct:.2f}%. Por isso o Alpha deixa cripto pequena e usa global como diversificação estrutural.",
+            "Resumo direto: se fosse para executar em partes, eu começaria pelo núcleo de ações Brasil, depois FIIs, depois global, e só uma fatia pequena na cripto do mês.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _allocation_buckets(amount: float, fixed_income_pct: float, crypto_pct: float, global_pct: float) -> dict[str, float]:
+    if fixed_income_pct >= 70:
+        weights = {"acoes_brasil": 0.55, "fiis": 0.20, "global": 0.15, "cripto": 0.10}
+    else:
+        weights = {"acoes_brasil": 0.40, "fiis": 0.20, "global": 0.25, "cripto": 0.10, "reserva": 0.05}
+    if global_pct < 3 and amount >= 500:
+        weights["global"] = max(weights.get("global", 0), 0.20)
+    if crypto_pct >= 8:
+        weights["acoes_brasil"] += weights.get("cripto", 0)
+        weights["cripto"] = 0.0
+    total = sum(weights.values()) or 1
+    return {key: round(amount * value / total, 2) for key, value in weights.items() if value > 0}
+
+
+def _extract_brl_amount(message: str) -> float:
+    text = message.lower()
+    if "mil" in text and not re.search(r"\d", text):
+        return 1000.0
+    match = re.search(r"(?:r\$\s*)?(\d+(?:[.\s]\d{3})*(?:,\d{1,2})?)", text)
+    if not match:
+        return 0.0
+    raw = match.group(1).replace(" ", "").replace(".", "").replace(",", ".")
+    try:
+        value = float(raw)
+    except ValueError:
+        return 0.0
+    if "mil" in text and value < 100:
+        value *= 1000
+    return max(0.0, value)
+
+
+def _top_assets(assets: list[dict], limit: int) -> list[dict]:
+    return sorted(
+        assets,
+        key=lambda item: _asset_score(item),
+        reverse=True,
+    )[:limit]
+
+
+def _asset_score(asset: dict) -> float:
+    for key in ("institutionalScore", "alphaScore", "targetWeight"):
+        value = as_float(asset.get(key))
+        if value:
+            return value
+    return 0.0
+
+
+def _asset_label(asset: dict) -> str:
+    ticker = str(asset.get("ticker") or "").upper()
+    name = str(asset.get("name") or "").strip()
+    return f"{ticker} ({name})" if ticker and name else ticker or name or "ativo em validação"
+
+
+def _asset_list(assets: list[dict]) -> str:
+    labels = [_asset_label(item) for item in assets if item]
+    if not labels:
+        return "ativos da Carteira Recomendada Alpha em validação"
+    if len(labels) == 1:
+        return labels[0]
+    return ", ".join(labels[:-1]) + " e " + labels[-1]
+
+
+def _brl(value: float) -> str:
+    formatted = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return f"R$ {formatted}"
+
+
+def _allocation_citations(context: dict) -> list[CopilotCitation]:
+    preferred_sources = {
+        "dashboard.metrics",
+        "portfolio_aggregation_engine",
+        "strategy_engine",
+        "recommended_portfolio_engine",
+        "alpha_fii_screener",
+        "alpha_global_screener",
+        "crypto_research_engine",
+    }
+    selected = [
+        _citation_from_source(source)
+        for source in context.get("sources", [])
+        if source.get("source") in preferred_sources
+    ]
+    return selected[:7] or _select_citations(context, ["S1", "S2", "S7"])
 
 
 def _select_citations(context: dict, requested: list[Any]) -> list[CopilotCitation]:

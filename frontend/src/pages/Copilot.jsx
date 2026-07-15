@@ -20,7 +20,7 @@ function CitationCard({ citation }) {
     <div className="rounded-lg border border-stone-200 bg-black/10 p-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">{citation.id}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">Fonte interna</p>
           <h4 className="mt-1 text-sm font-semibold text-stone-950">{citation.title}</h4>
         </div>
         <span className={`rounded-lg border px-2 py-1 text-[0.68rem] font-semibold uppercase ${confidenceClass(citation.confidence)}`}>
@@ -137,7 +137,7 @@ export default function Copilot({ token }) {
               <Sparkles size={18} className="text-amber-500" />
               <h3 className="font-semibold text-stone-950">Chat do Alpha</h3>
             </div>
-            <p className="mt-1 text-xs text-stone-500">A IA nao acessa provider de mercado pelo frontend e nao usa dados fora do contexto interno.</p>
+            <p className="mt-1 text-xs text-stone-500">A IA não acessa provider de mercado pelo frontend e não usa dados fora do contexto interno.</p>
           </div>
 
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -151,7 +151,7 @@ export default function Copilot({ token }) {
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {message.citations.map((citation) => (
                           <span key={citation.id} className="rounded-md border border-amber-400/35 bg-amber-500/10 px-2 py-1 text-[0.68rem] font-semibold text-amber-200">
-                            {citation.id}
+                            {citation.title}
                           </span>
                         ))}
                       </div>
@@ -212,7 +212,7 @@ export default function Copilot({ token }) {
           <div className="surface p-4">
             <div className="flex items-center gap-2">
               <ShieldCheck size={18} className="text-emerald-500" />
-              <h3 className="font-semibold text-stone-950">Regras de seguranca</h3>
+              <h3 className="font-semibold text-stone-950">Regras de segurança</h3>
             </div>
             <div className="mt-3 space-y-2">
               {(status.rules || []).map((rule) => (

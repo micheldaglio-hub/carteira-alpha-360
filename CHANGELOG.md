@@ -2,6 +2,7 @@
 
 ## 2026-07-15
 
+- Evoluído o Alpha Copilot para reconhecer perguntas de aporte como `tenho 1000 reais, o que devo comprar?` e responder com plano humano de alocação usando carteira atual, Carteira Recomendada Alpha, FIIs, Global e Crypto Research Engine, sem expor códigos técnicos `S1/S2` no texto da conversa.
 - Criado `External Integration Snapshot Bridge` para o Trading Desk EV+, usando o mesmo Supabase/PostgreSQL da Carteira Alpha.
 - Criada migration aditiva `backend/alembic/versions/20260715_0020_external_integration_snapshots.py`, com rollback seguro.
 - Adicionado modelo `ExternalIntegrationSnapshot` e service `backend/app/services/external_integrations.py`.
