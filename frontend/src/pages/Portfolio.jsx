@@ -216,6 +216,7 @@ export default function Portfolio({ token }) {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [syncingMarket, setSyncingMarket] = useState(false);
   const [deletingAssetId, setDeletingAssetId] = useState("");
   const [backtest, setBacktest] = useState(null);
   const [backtestForm, setBacktestForm] = useState({ start_date: defaultBacktestStart, end_date: today });
@@ -227,6 +228,24 @@ export default function Portfolio({ token }) {
     setError("");
     return apiFetch("/portfolio", { token }).then(setData).catch((err) => setError(err.message));
   };
+
+  async function syncMarketAndLoad() {
+    setSyncingMarket(true);
+    setStatus("");
+    setError("");
+    try {
+      const result = await apiFetch("/portfolio/sync-market", { method: "POST", token });
+      setStatus(
+        `Cotações sincronizadas: ${result.updated?.length || 0} ativo(s) atualizado(s), ${result.skipped?.length || 0} sem nova cotação.`
+      );
+      await load();
+      await runBacktest(backtestForm);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncingMarket(false);
+    }
+  }
 
   useEffect(() => {
     load();
@@ -329,9 +348,9 @@ export default function Portfolio({ token }) {
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-brand">Minha Carteira</p>
           <h2 className="text-2xl font-semibold text-stone-950">Minha carteira de investimentos</h2>
         </div>
-        <button onClick={load} className="btn-secondary h-10 px-3 text-sm">
+        <button onClick={syncMarketAndLoad} className="btn-secondary h-10 px-3 text-sm" disabled={syncingMarket}>
           <RefreshCw size={16} />
-          Atualizar
+          {syncingMarket ? "Sincronizando" : "Atualizar"}
         </button>
       </header>
 

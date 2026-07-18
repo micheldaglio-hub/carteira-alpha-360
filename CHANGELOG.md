@@ -2,6 +2,8 @@
 
 ## 2026-07-18
 
+- Botao `Atualizar` da Minha Carteira agora sincroniza cotacoes de mercado via `/portfolio/sync-market` antes de recarregar a tela e recalcular o backtest, evitando comparar rentabilidade com precos antigos salvos no banco.
+- Sincronizacao de ativos passou a priorizar `quote` para preco atual e usar fundamentos para indicadores, reduzindo divergencias contra radar de corretora como ION/Itau.
 - Separada a rentabilidade de acoes em duas leituras: `mes atual` e `ultimos 30 dias`, evitando comparar o card da Carteira Alpha com a coluna `Variacao 30 dias` da corretora usando janelas diferentes.
 - Adicionado `rolling30ReturnPct`/`rolling30Pnl` nas posicoes da carteira e novo card `Var. acoes 30 dias` na tela Minha Carteira para comparacao direta com ION/Itau.
 

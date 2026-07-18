@@ -7,7 +7,13 @@ from app.core.config import get_settings
 from app.models import Asset, MarketSnapshot
 from app.services.data_lineage import record_data_evidence
 from app.services.market_data.v2.engine import MarketDataEngine
-from app.services.market_data.v2.contracts import DATA_TYPE_FUNDAMENTALS, MarketDataRequest, MarketDataUnavailable, NormalizedMarketData
+from app.services.market_data.v2.contracts import (
+    DATA_TYPE_FUNDAMENTALS,
+    DATA_TYPE_QUOTE,
+    MarketDataRequest,
+    MarketDataUnavailable,
+    NormalizedMarketData,
+)
 from app.services.portfolio import get_positions
 
 
@@ -78,19 +84,29 @@ def sync_asset_market_data(db: Session, asset: Asset, timeout: float = 6.0) -> b
     engine = MarketDataEngine(db=db)
 
     try:
-        records = engine.collect(DATA_TYPE_FUNDAMENTALS, request, include_mock=False)
+        quote_records = engine.collect(DATA_TYPE_QUOTE, request, include_mock=False)
     except MarketDataUnavailable:
-        records = []
+        quote_records = []
 
-    if not records and settings.market_data_provider.lower() == "mock":
+    try:
+        fundamental_records = engine.collect(DATA_TYPE_FUNDAMENTALS, request, include_mock=False)
+    except MarketDataUnavailable:
+        fundamental_records = []
+
+    if not quote_records and not fundamental_records and settings.market_data_provider.lower() == "mock":
         try:
-            records = [engine.fetch(DATA_TYPE_FUNDAMENTALS, request)]
+            fundamental_records = [engine.fetch(DATA_TYPE_FUNDAMENTALS, request)]
         except MarketDataUnavailable:
-            records = []
+            fundamental_records = []
+    records = [*quote_records, *fundamental_records]
     if not records:
         return False
 
-    data = _merge_fundamental_records(records)
+    data = _merge_fundamental_records(fundamental_records)
+    quote_price = _best_field_value("price", quote_records)
+    if quote_price not in (None, "", 0, 0.0):
+        data["price"] = quote_price
+        data["sources"] = [quote_records[0].provider, *data.get("sources", [])]
     provider = str((data.get("sources") or ["market_data_engine"])[0])
     snapshot = asset.snapshot
     if snapshot is None:
