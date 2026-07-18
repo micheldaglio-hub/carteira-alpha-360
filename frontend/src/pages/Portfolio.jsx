@@ -32,7 +32,7 @@ const backtestReturnViews = [
     averageKey: "averageRiskAssetsMonthlyReturnPct",
     annualizedKey: "annualizedRiskAssetsReturnPct",
     monthlyEquivalentKey: "monthlyEquivalentRiskAssetsReturnPct",
-    hint: "Acoes + cripto, sem o RDB diluir o percentual.",
+    hint: "Ações + cripto, sem o RDB diluir o percentual.",
   },
   {
     id: "total",
@@ -47,8 +47,8 @@ const backtestReturnViews = [
   },
   {
     id: "stocks",
-    label: "Acoes",
-    shortLabel: "acoes",
+    label: "Ações",
+    shortLabel: "ações",
     dataKey: "stocksReturnPct",
     summaryKey: "stocksReturnPct",
     averageKey: "averageStocksMonthlyReturnPct",
@@ -126,11 +126,24 @@ function aggregatePositions(positions) {
       pnl: acc.pnl + Number(position.pnl || 0),
       monthStartValue: acc.monthStartValue + Number(position.monthStartValue || 0),
       monthPnl: acc.monthPnl + Number(position.monthPnl || 0),
+      rolling30StartValue: acc.rolling30StartValue + Number(position.rolling30StartValue || 0),
+      rolling30Pnl: acc.rolling30Pnl + Number(position.rolling30Pnl || 0),
     }),
-    { assetCount: 0, quantity: 0, investedValue: 0, currentValue: 0, pnl: 0, monthStartValue: 0, monthPnl: 0 }
+    {
+      assetCount: 0,
+      quantity: 0,
+      investedValue: 0,
+      currentValue: 0,
+      pnl: 0,
+      monthStartValue: 0,
+      monthPnl: 0,
+      rolling30StartValue: 0,
+      rolling30Pnl: 0,
+    }
   );
   totals.returnPct = totals.investedValue ? (totals.pnl / totals.investedValue) * 100 : 0;
   totals.monthReturnPct = totals.monthStartValue ? (totals.monthPnl / totals.monthStartValue) * 100 : 0;
+  totals.rolling30ReturnPct = totals.rolling30StartValue ? (totals.rolling30Pnl / totals.rolling30StartValue) * 100 : 0;
   return totals;
 }
 
@@ -271,7 +284,7 @@ export default function Portfolio({ token }) {
 
   async function removePosition(position) {
     const confirmed = window.confirm(
-      `Remover ${position.ticker} da sua carteira? Isso apaga movimentacoes, proventos, alertas e metas desse ativo apenas para o seu usuario.`
+      `Remover ${position.ticker} da sua carteira? Isso apaga movimentações, proventos, alertas e metas desse ativo apenas para o seu usuário.`
     );
     if (!confirmed) return;
 
@@ -324,9 +337,9 @@ export default function Portfolio({ token }) {
 
       {error ? <ErrorState message={error} /> : null}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <SummaryCard
-          label="Valor atual acoes"
+          label="Valor atual ações"
           value={currency.format(equitySummary.currentValue || 0)}
           hint={`Investido: ${currency.format(equitySummary.investedValue || 0)}`}
           icon={WalletCards}
@@ -354,18 +367,25 @@ export default function Portfolio({ token }) {
           tone={(cryptoSummary.pnl || 0) >= 0 ? "emerald" : "amber"}
         />
         <SummaryCard
-          label="Rent. acoes no mes"
+          label="Rent. ações no mês"
           value={pct(equitySummary.monthReturnPct)}
-          hint={`${currentMonthLabel}: ${currency.format(equitySummary.monthPnl || 0)} | Desde compra: ${pct(equitySummary.returnPct)}`}
+          hint={`${currentMonthLabel}: ${currency.format(equitySummary.monthPnl || 0)} | mês atual`}
           icon={TrendingUp}
           tone={(equitySummary.monthPnl || 0) >= 0 ? "emerald" : "rose"}
+        />
+        <SummaryCard
+          label="Var. ações 30 dias"
+          value={pct(equitySummary.rolling30ReturnPct)}
+          hint={`Janela móvel: ${currency.format(equitySummary.rolling30Pnl || 0)} | compara com corretora`}
+          icon={TrendingUp}
+          tone={(equitySummary.rolling30Pnl || 0) >= 0 ? "emerald" : "rose"}
         />
       </section>
 
       <section className="surface p-4">
         <div className="mb-4 flex items-center gap-2">
           <PlusCircle size={18} className="text-amber-700" />
-          <h3 className="font-semibold text-stone-950">Registrar compra ou venda de acoes</h3>
+          <h3 className="font-semibold text-stone-950">Registrar compra ou venda de ações</h3>
         </div>
         <form onSubmit={submit} className="grid gap-3 md:grid-cols-4 xl:grid-cols-12">
           <input
@@ -385,7 +405,7 @@ export default function Portfolio({ token }) {
             value={form.asset_class}
             onChange={(event) => setForm({ ...form, asset_class: event.target.value })}
           >
-            <option value="Acoes">Acoes</option>
+            <option value="Acoes">Ações</option>
             <option value="FIIs">FIIs</option>
             <option value="ETFs">ETFs</option>
             <option value="BDRs">BDRs</option>
@@ -423,7 +443,7 @@ export default function Portfolio({ token }) {
             step="0.01"
             value={form.price}
             onChange={(event) => setForm({ ...form, price: event.target.value })}
-            placeholder="Preco"
+            placeholder="Preço"
           />
           <input
             className="field xl:col-span-2"
@@ -450,13 +470,13 @@ export default function Portfolio({ token }) {
       <section className="surface overflow-hidden">
         <div className="border-b border-stone-200 px-4 py-3">
           <h3 className="font-semibold text-stone-950">Ativos de bolsa em carteira</h3>
-          <p className="text-xs text-stone-500">Acoes, FIIs, ETFs e BDRs. Renda fixa e cripto ficam em blocos separados.</p>
+          <p className="text-xs text-stone-500">Ações, FIIs, ETFs e BDRs. Renda fixa e cripto ficam em blocos separados.</p>
         </div>
         <div className="overflow-x-auto">
             <table className="w-full min-w-[1280px] text-left text-sm">
               <thead className="bg-stone-50 text-xs uppercase text-stone-500">
                 <tr>
-                {["Ativo", "Classe", "Setor", "Qtd.", "Preco medio", "Preco atual", "Investido", "Atual", "P/L", "Rent. compra", "P/L mes", "Rent. mes", "Proventos PM", "Peso", "Remover"].map((head) => (
+                {["Ativo", "Classe", "Setor", "Qtd.", "Preço médio", "Preço atual", "Investido", "Atual", "P/L", "Rent. compra", "P/L mês", "Rent. mês", "Proventos PM", "Peso", "Remover"].map((head) => (
                   <th key={head} className="px-4 py-3 font-semibold">{head}</th>
                 ))}
               </tr>
@@ -574,7 +594,7 @@ export default function Portfolio({ token }) {
             <Bitcoin size={18} className="text-amber-700" />
             <h3 className="font-semibold text-stone-950">Minha carteira de cripto</h3>
           </div>
-          <p className="text-xs text-stone-500">Criptomoedas separadas para nao misturar leitura de acoes com ativos de risco mais alto.</p>
+          <p className="text-xs text-stone-500">Criptomoedas separadas para não misturar leitura de ações com ativos de risco mais alto.</p>
         </div>
         <div className="space-y-4 p-4">
           <section className="grid gap-3 md:grid-cols-3">
@@ -605,7 +625,7 @@ export default function Portfolio({ token }) {
             <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="bg-stone-50 text-xs uppercase text-stone-500">
                 <tr>
-                  {["Cripto", "Qtd.", "Preco medio", "Preco atual", "Investido", "Atual", "P/L", "Rent.", "Peso cripto", "Peso total", "Remover"].map((head) => (
+                  {["Cripto", "Qtd.", "Preço médio", "Preço atual", "Investido", "Atual", "P/L", "Rent.", "Peso cripto", "Peso total", "Remover"].map((head) => (
                     <th key={head} className="px-4 py-3 font-semibold">{head}</th>
                   ))}
                 </tr>
@@ -703,7 +723,7 @@ export default function Portfolio({ token }) {
             <SummaryCard
               label={`Retorno ${selectedBacktestReturnView.shortLabel}`}
               value={pct(selectedBacktestReturnPct)}
-              hint={`Equiv. composto: ${pct(selectedBacktestAnnualizedPct)} a.a. / ${pct(selectedBacktestMonthlyEquivalentPct)} a.m. Media aritmetica: ${pct(selectedBacktestAveragePct)}.`}
+              hint={`Equiv. composto: ${pct(selectedBacktestAnnualizedPct)} a.a. / ${pct(selectedBacktestMonthlyEquivalentPct)} a.m. Média aritmética: ${pct(selectedBacktestAveragePct)}.`}
               icon={TrendingUp}
               tone={selectedBacktestReturnPct >= 0 ? "emerald" : "rose"}
             />
@@ -717,7 +737,7 @@ export default function Portfolio({ token }) {
           </section>
 
           <div className="portfolio-backtest-note">
-            <strong>Como ler:</strong> a simulacao comeca com o valor atual real de cada ativo e adiciona {currency.format(backtest?.summary?.monthlyContribution || 0)} por mes, conforme as premissas salvas na Visao Geral. Retorno acumulado nao deve ser dividido pelos meses para comparar com CDI/poupanca; use o equivalente composto a.a. ou a.m. O consolidado inclui renda fixa; se o RDB for grande, ele dilui a variacao de acoes e cripto.
+            <strong>Como ler:</strong> a simulação começa com o valor atual real de cada ativo e adiciona {currency.format(backtest?.summary?.monthlyContribution || 0)} por mês, conforme as premissas salvas na Visão Geral. Retorno acumulado não deve ser dividido pelos meses para comparar com CDI/poupança; use o equivalente composto a.a. ou a.m. O consolidado inclui renda fixa; se o RDB for grande, ele dilui a variação de ações e cripto.
           </div>
 
           <section className="grid gap-3 xl:grid-cols-2">
@@ -726,7 +746,7 @@ export default function Portfolio({ token }) {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">Total Return auditado</p>
                   <p className="mt-1 text-sm leading-5 text-stone-500">
-                    Retorno de preco mais dividendos, JCP e rendimentos cadastrados no sistema.
+                    Retorno de preço mais dividendos, JCP e rendimentos cadastrados no sistema.
                   </p>
                 </div>
                 <div className={`portfolio-return-badge is-inline ${selectedBacktestReturnWithIncomePct >= 0 ? "is-positive" : "is-negative"}`}>
@@ -753,9 +773,9 @@ export default function Portfolio({ token }) {
             <div className="rounded-lg border border-sky-400/25 bg-sky-500/10 p-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-300">Confianca dos dados</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-sky-300">Confiança dos dados</p>
                   <p className="mt-1 text-sm leading-5 text-stone-500">
-                    Mede se preco, historico, fundamentos, proventos e transacoes tem fonte rastreavel.
+                    Mede se preço, histórico, fundamentos, proventos e transações têm fonte rastreável.
                   </p>
                 </div>
                 <div className="rounded-lg border border-sky-400/30 bg-sky-500/10 px-3 py-2 text-right">
@@ -765,7 +785,7 @@ export default function Portfolio({ token }) {
               </div>
               <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
                 <p className="rounded-md border border-white/10 bg-black/10 px-2 py-2 text-stone-500">
-                  Classificacao <strong className="block text-stone-950">{backtestDataConfidence.classification || "Sem auditoria"}</strong>
+                  Classificação <strong className="block text-stone-950">{backtestDataConfidence.classification || "Sem auditoria"}</strong>
                 </p>
                 <p className="rounded-md border border-white/10 bg-black/10 px-2 py-2 text-stone-500">
                   Ativos auditados <strong className="block text-stone-950">{backtestDataConfidence.assetCount || 0}</strong>
@@ -781,8 +801,8 @@ export default function Portfolio({ token }) {
             <div className="portfolio-backtest-chart p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <div>
-                  <h4 className="font-semibold text-stone-950">Patrimonio retroativo</h4>
-                  <p className="text-xs text-stone-500">Ativos de bolsa, renda fixa, cripto e total mes a mes.</p>
+                  <h4 className="font-semibold text-stone-950">Patrimônio retroativo</h4>
+                  <p className="text-xs text-stone-500">Ativos de bolsa, renda fixa, cripto e total mês a mês.</p>
                 </div>
               </div>
               <div className="h-80">
@@ -794,7 +814,7 @@ export default function Portfolio({ token }) {
                     <Tooltip content={<BacktestLineTooltip />} cursor={{ stroke: "rgba(245, 200, 75, 0.55)", strokeWidth: 1 }} />
                     <Legend />
                     <Line type="monotone" dataKey="totalValue" name="Total" stroke="var(--primary)" strokeWidth={2.4} dot={false} />
-                    <Line type="monotone" dataKey="stocksValue" name="Acoes" stroke="#74c7ff" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="stocksValue" name="Ações" stroke="#74c7ff" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="fixedIncomeValue" name="Renda fixa" stroke="#c4b5fd" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="cryptoValue" name="Cripto" stroke="#3bd19f" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -804,7 +824,7 @@ export default function Portfolio({ token }) {
 
             <div className="portfolio-backtest-chart p-3">
               <div className="relative min-h-[5.25rem] pr-28">
-                <h4 className="font-semibold text-stone-950">Retorno mes a mes</h4>
+                <h4 className="font-semibold text-stone-950">Retorno mês a mês</h4>
                 <p className="text-xs text-stone-500">Percentual mensal de {selectedBacktestReturnView.shortLabel}.</p>
                 <div className="mt-2 flex flex-wrap gap-1.5 pr-2">
                   {backtestReturnViews.map((view) => (
@@ -823,7 +843,7 @@ export default function Portfolio({ token }) {
                   ))}
                 </div>
                 <div className={`portfolio-return-badge ${selectedBacktestReturnPct >= 0 ? "is-positive" : "is-negative"}`}>
-                  <span>{selectedBacktestReturnPct >= 0 ? "Lucro" : "Prejuizo"}</span>
+                  <span>{selectedBacktestReturnPct >= 0 ? "Lucro" : "Prejuízo"}</span>
                   <strong>{pct(selectedBacktestReturnPct)}</strong>
                 </div>
               </div>

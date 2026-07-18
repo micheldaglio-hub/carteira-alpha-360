@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-07-18
+
+- Separada a rentabilidade de acoes em duas leituras: `mes atual` e `ultimos 30 dias`, evitando comparar o card da Carteira Alpha com a coluna `Variacao 30 dias` da corretora usando janelas diferentes.
+- Adicionado `rolling30ReturnPct`/`rolling30Pnl` nas posicoes da carteira e novo card `Var. acoes 30 dias` na tela Minha Carteira para comparacao direta com ION/Itau.
+
 ## 2026-07-15 - Hotfix cripto precision
 
 - Corrigida a segunda causa de distorcao em criptos de baixo valor: SHIB, FLR, JASMY e similares agora usam IDs oficiais do CoinGecko para cotacao real e o reparo anti-mock reconstrói preco medio pelo livro de transacoes, sem depender do valor arredondado da tela.

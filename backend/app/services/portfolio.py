@@ -173,6 +173,7 @@ def get_positions_with_month_performance(db: Session, user_id: str) -> list[dict
 
     today = date.today()
     performance_start = _month_performance_start(today)
+    rolling_30_start = today - timedelta(days=30)
     engine = MarketDataEngine(db=db)
 
     for position in positions:
@@ -182,6 +183,12 @@ def get_positions_with_month_performance(db: Session, user_id: str) -> list[dict
         position["monthPnl"] = 0.0
         position["monthReturnPct"] = 0.0
         position["monthPerformanceSource"] = "not_applicable"
+        position["rolling30StartDate"] = rolling_30_start.isoformat()
+        position["rolling30StartPrice"] = position.get("currentPrice") or 0
+        position["rolling30StartValue"] = position.get("currentValue") or 0
+        position["rolling30Pnl"] = 0.0
+        position["rolling30ReturnPct"] = 0.0
+        position["rolling30PerformanceSource"] = "not_applicable"
 
         asset = db.get(Asset, position.get("assetId")) if position.get("assetId") else None
         taxonomy = classify_position(position, asset)
@@ -196,24 +203,35 @@ def get_positions_with_month_performance(db: Session, user_id: str) -> list[dict
                 market=asset.market or ("Crypto" if taxonomy.is_crypto else "B3"),
                 asset_class=asset.asset_class,
                 currency=asset.currency or "BRL",
-                start_date=performance_start - timedelta(days=10),
+                start_date=min(performance_start, rolling_30_start) - timedelta(days=10),
                 end_date=today,
                 interval="1day",
             )
             record, prices = _first_price_history(engine, request)
             current_price = as_float(position.get("currentPrice"), 6)
             start_price = _month_start_price(prices, performance_start, current_price)
+            rolling_30_start_price = _price_at_or_before(prices, rolling_30_start, current_price)
             quantity = as_float(position.get("quantity"), 6)
             start_value = quantity * start_price
+            rolling_30_start_value = quantity * rolling_30_start_price
             current_value = as_float(position.get("currentValue"))
             month_pnl = current_value - start_value
+            rolling_30_pnl = current_value - rolling_30_start_value
             position["monthStartPrice"] = as_float(start_price, 6)
             position["monthStartValue"] = as_float(start_value)
             position["monthPnl"] = as_float(month_pnl)
             position["monthReturnPct"] = as_float(month_pnl / start_value * 100 if start_value else 0.0)
             position["monthPerformanceSource"] = record.provider if record and prices else "fallback_current_price"
+            position["rolling30StartPrice"] = as_float(rolling_30_start_price, 6)
+            position["rolling30StartValue"] = as_float(rolling_30_start_value)
+            position["rolling30Pnl"] = as_float(rolling_30_pnl)
+            position["rolling30ReturnPct"] = as_float(
+                rolling_30_pnl / rolling_30_start_value * 100 if rolling_30_start_value else 0.0
+            )
+            position["rolling30PerformanceSource"] = record.provider if record and prices else "fallback_current_price"
         except Exception:
             position["monthPerformanceSource"] = "fallback_current_price"
+            position["rolling30PerformanceSource"] = "fallback_current_price"
 
     try:
         db.commit()
@@ -267,6 +285,18 @@ def _month_start_price(prices: list[dict], month_start: date, fallback: float) -
         if row["date"] <= month_start:
             before = row
     return as_float((before or {}).get("close"), 6) or fallback
+
+
+def _price_at_or_before(prices: list[dict], target: date, fallback: float) -> float:
+    selected = None
+    for row in prices:
+        if row["date"] <= target:
+            selected = row
+        else:
+            break
+    if selected is None and prices:
+        selected = prices[0]
+    return as_float((selected or {}).get("close"), 6) or fallback
 
 
 def _month_performance_start(today: date) -> date:
