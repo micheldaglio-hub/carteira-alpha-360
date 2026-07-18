@@ -2,6 +2,13 @@
 
 ## 2026-07-18
 
+- Hotfix profundo de confiabilidade de cotacoes em producao: BRAPI passou a ficar ativo para B3 mesmo sem token configurado no Render, evitando queda para dados demonstrativos quando a variavel `MARKET_DATA_PROVIDER` nao estiver em `brapi`.
+- Sincronizacao de acoes deixou de restaurar preco suspeito pelo preco medio de compra; quando a cotacao direta falha, o sistema usa historico real priorizado antes de declarar ativo sem nova cotacao.
+- Sincronizacao de criptomoedas passou a aceitar apenas CoinMarketCap/CoinGecko para preco atual, bloqueando Twelve Data/mock como fonte de preco de cripto e impedindo valores genericos como `R$ 25,00` em FLR, BTC, ETH e SHIB.
+- Rentabilidade mensal, janela movel de 30 dias e backtest da carteira passaram a selecionar historico por prioridade de provider: Yahoo/Dados/FMP/Twelve para ativos de bolsa e CoinGecko/CoinMarketCap para cripto.
+- Executada sincronizacao controlada no Supabase para limpar precos contaminados ja persistidos na carteira do usuario: BBDC4, TAEE11, WEGE3, CMIG4 e criptos voltaram para fontes reais, com cripto consolidada novamente em valor compativel.
+- Corrigida configuracao local do Trading Desk EV+ para enviar snapshots ao Carteira Alpha online, com timeout maior para acordar o Render sem falha no primeiro envio.
+- Ampliados testes de seguranca para impedir contaminacao por mock, confirmar fallback por historico real em acoes, ignorar Twelve Data em cripto e reparar BTC quando provider externo falhar.
 - Hotfix de sincronizacao da carteira: o endpoint `/portfolio/sync-market` deixou de persistir dados `mock`/`fallback` como preco real, passou a ignorar renda fixa no caminho de cotacoes de mercado e encaminha criptos para o sincronizador especifico de cripto.
 - Adicionado reparo automatico para precos suspeitos de `R$ 25,00` ja gravados em ativos reais, restaurando o preco pelo livro de transacoes quando nao houver cotacao confiavel disponivel.
 - A tela Minha Carteira agora informa quantos precos suspeitos foram restaurados apos clicar em `Atualizar`.

@@ -11,6 +11,7 @@ from app.services.fixed_income import is_fixed_income_class
 from app.services.market_data.v2.engine import MarketDataEngine
 from app.services.market_data.v2.contracts import (
     DATA_TYPE_FUNDAMENTALS,
+    DATA_TYPE_PRICE_HISTORY,
     DATA_TYPE_QUOTE,
     MarketDataRequest,
     MarketDataUnavailable,
@@ -20,6 +21,7 @@ from app.services.portfolio import get_positions
 
 
 UNTRUSTED_SYNC_PROVIDERS = {"mock", "fallback"}
+PRICE_HISTORY_PROVIDER_PRIORITY = ["yahoo_finance", "brapi", "fmp", "twelvedata", "dados_mercado"]
 
 SNAPSHOT_FIELD_MAP = {
     "price": "price",
@@ -98,8 +100,15 @@ def sync_asset_market_data(db: Session, asset: Asset, timeout: float = 6.0) -> b
 
     quote_records = _trusted_sync_records(quote_records)
     fundamental_records = _trusted_sync_records(fundamental_records)
+    history_price_record = None
+    if not quote_records:
+        try:
+            history_records = _trusted_sync_records(engine.collect(DATA_TYPE_PRICE_HISTORY, request, include_mock=False))
+        except MarketDataUnavailable:
+            history_records = []
+        history_price_record = _latest_history_price_record(history_records)
     records = [*quote_records, *fundamental_records]
-    if not records:
+    if not records and history_price_record is None:
         return False
 
     data = _merge_fundamental_records(fundamental_records)
@@ -107,6 +116,9 @@ def sync_asset_market_data(db: Session, asset: Asset, timeout: float = 6.0) -> b
     if quote_price not in (None, "", 0, 0.0):
         data["price"] = quote_price
         data["sources"] = [quote_records[0].provider, *data.get("sources", [])]
+    elif history_price_record is not None:
+        data["price"] = history_price_record["price"]
+        data["sources"] = [history_price_record["provider"], *data.get("sources", [])]
     provider = str((data.get("sources") or ["market_data_engine"])[0])
     snapshot = asset.snapshot
     if snapshot is None:
@@ -170,6 +182,39 @@ def _trusted_sync_records(records: list[NormalizedMarketData]) -> list[Normalize
     return trusted
 
 
+def _latest_history_price_record(records: list[NormalizedMarketData]) -> dict | None:
+    candidates = []
+    for record in records:
+        prices = record.payload.get("prices") or []
+        clean_prices = []
+        for row in prices:
+            if not isinstance(row, dict):
+                continue
+            value = row.get("close", row.get("price"))
+            if value in (None, "", 0, 0.0):
+                continue
+            try:
+                clean_prices.append({"date": str(row.get("date") or ""), "price": float(value)})
+            except (TypeError, ValueError):
+                continue
+        if not clean_prices:
+            continue
+        clean_prices.sort(key=lambda item: item["date"])
+        latest = clean_prices[-1]
+        provider = (record.provider or "").lower()
+        provider_rank = (
+            PRICE_HISTORY_PROVIDER_PRIORITY.index(provider)
+            if provider in PRICE_HISTORY_PROVIDER_PRIORITY
+            else len(PRICE_HISTORY_PROVIDER_PRIORITY) + 5
+        )
+        candidates.append((provider_rank, -float(record.quality_score or 0), latest["date"], latest["price"], provider))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+    _, _, latest_date, price, provider = candidates[0]
+    return {"date": latest_date, "price": price, "provider": provider}
+
+
 def _merge_fundamental_records(records: list[NormalizedMarketData]) -> dict:
     merged: dict[str, float | str] = {"sources": [record.provider for record in records]}
     for field in SNAPSHOT_FIELD_MAP:
@@ -229,12 +274,8 @@ def sync_user_assets(db: Session, user_id: str) -> dict:
                 skipped.append(asset.ticker)
             continue
 
-        before_price = _asset_price(asset)
         synced = sync_asset_market_data(db, asset, timeout=15.0)
-        if _restore_suspicious_market_mock_price(db, user_id, asset, position, previous_price=before_price):
-            repaired.append(asset.ticker)
-            skipped.append(asset.ticker)
-        elif synced:
+        if synced:
             updated.append(asset.ticker)
         else:
             skipped.append(asset.ticker)
@@ -254,40 +295,6 @@ def _restore_suspicious_crypto_price(db: Session, user_id: str, asset: Asset, po
     from app.services.crypto import restore_suspicious_crypto_mock_price
 
     return restore_suspicious_crypto_mock_price(db, user_id, asset, position)
-
-
-def _restore_suspicious_market_mock_price(
-    db: Session,
-    user_id: str,
-    asset: Asset,
-    position: dict,
-    *,
-    previous_price: Decimal,
-) -> bool:
-    """Undo a previously persisted generic mock price on real exchange assets."""
-
-    current_price = _asset_price(asset)
-    if not (Decimal("24.99") <= current_price <= Decimal("25.01")):
-        return False
-    if not (Decimal("24.99") <= previous_price <= Decimal("25.01")):
-        return False
-    if is_fixed_income_class(asset.asset_class) or (asset.asset_class or "").strip().lower() in {"cripto", "crypto"}:
-        return False
-    average_price = _decimal(position.get("averagePrice"))
-    if average_price is None or average_price <= 0:
-        return False
-    distance_from_average = abs((current_price / average_price) - Decimal("1")) if average_price else Decimal("0")
-    if distance_from_average < Decimal("0.20"):
-        return False
-    restored = _average_transaction_price(db, user_id, asset.id) or average_price
-    if restored <= 0:
-        return False
-    asset.last_price = restored
-    if asset.snapshot is None:
-        db.add(MarketSnapshot(asset_id=asset.id, price=restored, dividend_yield=0, payout=0))
-    else:
-        asset.snapshot.price = restored
-    return True
 
 
 def _average_transaction_price(db: Session, user_id: str, asset_id: str) -> Decimal | None:

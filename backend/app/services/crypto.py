@@ -10,7 +10,7 @@ from app.alpha.event_engine import record_event
 from app.engines.asset_engine import ensure_asset_engine_metadata
 from app.models import Alert, AlphaEventModel, Asset, Dividend, MarketSnapshot, TargetAllocation, Transaction
 from app.schemas import CryptoTransactionCreate
-from app.services.market_data.v2.contracts import MarketDataUnavailable
+from app.services.market_data.v2.contracts import DATA_TYPE_QUOTE, MarketDataRequest, MarketDataUnavailable, NormalizedMarketData
 from app.services.market_data.v2.engine import MarketDataEngine
 from app.services.market_data.providers.coinmarketcap import CoinMarketCapProvider
 from app.services.portfolio import get_positions
@@ -27,6 +27,8 @@ CRYPTO_CATEGORIES = {
     "ADA": "smart contract",
     "DOGE": "meme coin",
 }
+
+CRYPTO_PRICE_PROVIDER_PRIORITY = ["coinmarketcap", "coingecko"]
 
 
 def clean_text(value: str | None, fallback: str) -> str:
@@ -78,15 +80,16 @@ def sync_crypto_asset(db: Session, asset: Asset) -> bool:
     price = None
     currency = asset.currency or "BRL"
     try:
-        quote = MarketDataEngine(db=db).get_quote(
-            asset.ticker,
+        request = MarketDataRequest(
+            symbol=asset.ticker,
             asset_id=asset.id,
             provider_symbol=asset.provider_symbol or asset.ticker,
             market="Crypto",
             asset_class="Cripto",
             currency=currency,
         )
-        if quote.provider != "mock":
+        quote = _best_crypto_quote(MarketDataEngine(db=db).collect(DATA_TYPE_QUOTE, request, include_mock=False))
+        if quote is not None:
             price = quote.payload.get("price")
             currency = quote.currency or currency
     except MarketDataUnavailable:
@@ -102,6 +105,26 @@ def sync_crypto_asset(db: Session, asset: Asset) -> bool:
     else:
         asset.snapshot.price = Decimal(str(price))
     return True
+
+
+def _best_crypto_quote(records: list[NormalizedMarketData]) -> NormalizedMarketData | None:
+    candidates = []
+    for record in records:
+        provider = (record.provider or "").lower()
+        if provider not in CRYPTO_PRICE_PROVIDER_PRIORITY:
+            continue
+        price = _decimal_or_none(record.payload.get("price"))
+        if price is None or price <= 0:
+            continue
+        try:
+            provider_rank = CRYPTO_PRICE_PROVIDER_PRIORITY.index(provider)
+        except ValueError:
+            provider_rank = len(CRYPTO_PRICE_PROVIDER_PRIORITY) + 5
+        candidates.append((provider_rank, -float(record.quality_score or 0), record))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return candidates[0][2]
 
 
 def _fallback_coinmarketcap_quote(ticker: str, currency: str) -> tuple[float | None, str]:
@@ -141,8 +164,6 @@ def restore_suspicious_crypto_mock_price(db: Session, user_id: str, asset: Asset
     """
 
     current_price = float(asset.last_price or 0)
-    if asset.ticker.upper() in {"BTC", "ETH", "SOL"}:
-        return False
     if not (24.99 <= current_price <= 25.01):
         return False
     restored = _average_crypto_transaction_price(db, user_id, asset.id)

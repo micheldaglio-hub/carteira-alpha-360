@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import Asset, MarketSnapshot, Transaction, User
 from app.services.market_data.sync import sync_asset_market_data, sync_user_assets
-from app.services.market_data.v2.contracts import DATA_TYPE_QUOTE, NormalizedMarketData
+from app.services.market_data.v2.contracts import DATA_TYPE_FUNDAMENTALS, DATA_TYPE_PRICE_HISTORY, DATA_TYPE_QUOTE, NormalizedMarketData
 
 
 class MarketDataSyncSafetyTests(unittest.TestCase):
@@ -46,23 +46,38 @@ class MarketDataSyncSafetyTests(unittest.TestCase):
         self.assertEqual(float(asset.last_price), 18.23)
         self.assertEqual(float(asset.snapshot.price), 18.23)
 
-    def test_portfolio_sync_repairs_previous_mock_price_from_transaction_ledger(self) -> None:
+    def test_portfolio_sync_replaces_previous_mock_price_with_history_fallback(self) -> None:
         asset = self._asset("BBDC4", "Acoes", Decimal("25.00"))
         self._transaction(asset, quantity=Decimal("7"), price=Decimal("12.56"))
         self.db.commit()
+        history = NormalizedMarketData(
+            data_type=DATA_TYPE_PRICE_HISTORY,
+            provider="yahoo_finance",
+            source_symbol="BBDC4",
+            currency="BRL",
+            payload={"prices": [{"date": "2026-07-18", "close": 18.86}]},
+            quality_score=82,
+        )
 
-        with patch("app.services.market_data.sync.MarketDataEngine.collect", return_value=[]), patch(
+        def collect(data_type, request, include_mock=False):
+            if data_type == DATA_TYPE_PRICE_HISTORY:
+                return [history]
+            if data_type in {DATA_TYPE_QUOTE, DATA_TYPE_FUNDAMENTALS}:
+                return []
+            return []
+
+        with patch("app.services.market_data.sync.MarketDataEngine.collect", side_effect=collect), patch(
             "app.services.market_data.sync.MarketDataEngine.fetch",
             side_effect=AssertionError("sync must not use mock fallback fetch"),
         ):
             result = sync_user_assets(self.db, self.user.id)
 
         self.db.refresh(asset)
-        self.assertEqual(result["updated"], [])
-        self.assertEqual(result["skipped"], ["BBDC4"])
-        self.assertEqual(result["repaired"], ["BBDC4"])
-        self.assertEqual(round(float(asset.last_price), 2), 12.56)
-        self.assertEqual(round(float(asset.snapshot.price), 2), 12.56)
+        self.assertEqual(result["updated"], ["BBDC4"])
+        self.assertEqual(result["skipped"], [])
+        self.assertEqual(result["repaired"], [])
+        self.assertEqual(round(float(asset.last_price), 2), 18.86)
+        self.assertEqual(round(float(asset.snapshot.price), 2), 18.86)
 
     def test_portfolio_sync_skips_fixed_income_in_market_quote_path(self) -> None:
         asset = self._asset("RDB RESGATE IMEDIATO", "Renda fixa", Decimal("40826.84"), sector="100% CDI")
@@ -93,12 +108,9 @@ class MarketDataSyncSafetyTests(unittest.TestCase):
             payload={"price": 25.0},
         )
 
-        with patch("app.services.crypto.MarketDataEngine.get_quote", return_value=mock_quote), patch(
+        with patch("app.services.crypto.MarketDataEngine.collect", return_value=[mock_quote]), patch(
             "app.services.crypto.CoinMarketCapProvider.get_quote",
             return_value=None,
-        ), patch(
-            "app.services.market_data.sync.MarketDataEngine.collect",
-            side_effect=AssertionError("crypto must not be synced through the generic quote path"),
         ):
             result = sync_user_assets(self.db, self.user.id)
 

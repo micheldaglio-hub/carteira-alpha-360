@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Asset, MarketSnapshot, Transaction, User
-from app.services.crypto import sync_user_crypto
+from app.services.crypto import sync_crypto_asset, sync_user_crypto
 from app.services.market_data.v2.contracts import DATA_TYPE_QUOTE, MarketDataRequest, NormalizedMarketData
 from app.services.market_data.v2.providers.coingecko import CoinGeckoProviderV2
 
@@ -65,7 +65,7 @@ class CryptoSyncTests(unittest.TestCase):
             payload={"price": 25.0},
         )
 
-        with patch("app.services.crypto.MarketDataEngine.get_quote", return_value=mock_quote), patch(
+        with patch("app.services.crypto.MarketDataEngine.collect", return_value=[mock_quote]), patch(
             "app.services.crypto.CoinMarketCapProvider.get_quote",
             return_value=None,
         ):
@@ -113,7 +113,7 @@ class CryptoSyncTests(unittest.TestCase):
             payload={"price": 25.0},
         )
 
-        with patch("app.services.crypto.MarketDataEngine.get_quote", return_value=mock_quote), patch(
+        with patch("app.services.crypto.MarketDataEngine.collect", return_value=[mock_quote]), patch(
             "app.services.crypto.CoinMarketCapProvider.get_quote",
             return_value=None,
         ):
@@ -125,6 +125,92 @@ class CryptoSyncTests(unittest.TestCase):
         self.assertEqual(result["repaired"], ["SHIB"])
         self.assertAlmostEqual(float(asset.last_price), 0.000067, places=8)
         self.assertAlmostEqual(float(asset.snapshot.price), 0.000067, places=8)
+
+    def test_sync_crypto_ignores_twelvedata_bogus_price_and_uses_coingecko(self) -> None:
+        asset = Asset(
+            ticker="FLR",
+            name="Flare",
+            asset_class="Cripto",
+            sector="Cripto",
+            segment="infraestrutura",
+            currency="BRL",
+            provider_symbol="FLR",
+            last_price=Decimal("25.00"),
+        )
+        self.db.add(asset)
+        self.db.flush()
+        self.db.add(MarketSnapshot(asset_id=asset.id, price=Decimal("25.00"), dividend_yield=0, payout=0))
+        self.db.commit()
+        twelvedata_quote = NormalizedMarketData(
+            data_type=DATA_TYPE_QUOTE,
+            provider="twelvedata",
+            source_symbol="FLR",
+            currency="USD",
+            payload={"price": 49.08},
+            quality_score=70,
+        )
+        coingecko_quote = NormalizedMarketData(
+            data_type=DATA_TYPE_QUOTE,
+            provider="coingecko",
+            source_symbol="FLR",
+            currency="BRL",
+            payload={"price": 0.03334873},
+            quality_score=84,
+        )
+
+        with patch("app.services.crypto.MarketDataEngine.collect", return_value=[twelvedata_quote, coingecko_quote]):
+            changed = sync_crypto_asset(self.db, asset)
+
+        self.assertTrue(changed)
+        self.assertAlmostEqual(float(asset.last_price), 0.03334873, places=8)
+        self.assertAlmostEqual(float(asset.snapshot.price), 0.03334873, places=8)
+
+    def test_sync_repairs_generic_mock_price_for_btc_from_ledger_when_providers_fail(self) -> None:
+        asset = Asset(
+            ticker="BTC",
+            name="Bitcoin",
+            asset_class="Cripto",
+            sector="Cripto",
+            segment="reserva de valor",
+            currency="BRL",
+            provider_symbol="BTC",
+            last_price=Decimal("25.00"),
+        )
+        self.db.add(asset)
+        self.db.flush()
+        self.db.add(MarketSnapshot(asset_id=asset.id, price=Decimal("25.00"), dividend_yield=0, payout=0))
+        self.db.add(
+            Transaction(
+                user_id=self.user.id,
+                asset_id=asset.id,
+                type="buy",
+                date=date(2026, 7, 1),
+                quantity=Decimal("0.001"),
+                price=Decimal("320476.36"),
+                fees=Decimal("0"),
+                broker="Binance",
+            )
+        )
+        self.db.commit()
+        mock_quote = NormalizedMarketData(
+            data_type=DATA_TYPE_QUOTE,
+            provider="mock",
+            source_symbol="BTC",
+            currency="BRL",
+            payload={"price": 25.0},
+        )
+
+        with patch("app.services.crypto.MarketDataEngine.collect", return_value=[mock_quote]), patch(
+            "app.services.crypto.CoinMarketCapProvider.get_quote",
+            return_value=None,
+        ):
+            result = sync_user_crypto(self.db, self.user.id)
+
+        self.db.refresh(asset)
+        self.assertEqual(result["updated"], [])
+        self.assertEqual(result["skipped"], ["BTC"])
+        self.assertEqual(result["repaired"], ["BTC"])
+        self.assertEqual(round(float(asset.last_price), 2), 320476.36)
 
     def test_coingecko_quote_uses_coin_id_for_low_price_tokens(self) -> None:
         provider = CoinGeckoProviderV2()

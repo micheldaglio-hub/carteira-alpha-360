@@ -16,6 +16,11 @@ from app.services.portfolio import get_positions
 from app.services.projection_premises import get_dashboard_projection_premises
 from app.services.total_return_engine import apply_total_return_overlay
 
+PRICE_HISTORY_PROVIDER_PRIORITY = {
+    "crypto": ["coingecko", "coinmarketcap"],
+    "default": ["yahoo_finance", "dados_mercado", "fmp", "twelvedata"],
+}
+
 
 def get_current_portfolio_backtest(db: Session, user_id: str, start_date: date, end_date: date) -> dict:
     start, end = _normalize_range(start_date, end_date)
@@ -49,11 +54,11 @@ def get_current_portfolio_backtest(db: Session, user_id: str, start_date: date, 
             histories[position["assetId"]] = prices
             sources[position["ticker"]] = record.provider if record and prices else "fallback_current_price"
             if not prices:
-                warnings.append(f"{position['ticker']} sem historico real suficiente; usado preco atual como fallback.")
+                warnings.append(f"{position['ticker']} sem histórico real suficiente; usado preço atual como fallback.")
         except (MarketDataUnavailable, Exception):
             histories[position["assetId"]] = []
             sources[position["ticker"]] = "fallback_current_price"
-            warnings.append(f"{position['ticker']} sem historico real suficiente; usado preco atual como fallback.")
+            warnings.append(f"{position['ticker']} sem histórico real suficiente; usado preço atual como fallback.")
 
     try:
         db.commit()
@@ -93,13 +98,13 @@ def get_current_portfolio_backtest(db: Session, user_id: str, start_date: date, 
         "sources": sources,
         "warnings": warnings[:8],
         "notes": [
-            "Simulacao usa o valor atual real de cada ativo como ponto de partida e aplica sua variacao historica individual.",
-            "Aporte mensal vem das premissas salvas na Visao Geral e e distribuido proporcionalmente entre os ativos simulados.",
-            "Retorno total e calculado por performance encadeada dos ativos, sem contar aporte como lucro.",
-            "Total Return soma retorno de preco com dividendos, JCP e rendimentos cadastrados no livro interno.",
-            "Renda fixa fica separada de acoes e cripto; no backtest retroativo inicial ela usa valor atual como ancora, sem curva historica detalhada de CDI.",
-            "Historico de proventos vindo de provider externo ainda precisa passar pelo Knowledge Engine antes de compor a serie historica.",
-            "Quando algum provider nao entrega historico, o ativo fica com preco atual como fallback para nao quebrar a simulacao.",
+            "Simulação usa o valor atual real de cada ativo como ponto de partida e aplica sua variação histórica individual.",
+            "Aporte mensal vem das premissas salvas na Visão Geral e é distribuído proporcionalmente entre os ativos simulados.",
+            "Retorno total é calculado por performance encadeada dos ativos, sem contar aporte como lucro.",
+            "Total Return soma retorno de preço com dividendos, JCP e rendimentos cadastrados no livro interno.",
+            "Renda fixa fica separada de ações e cripto; no backtest retroativo inicial ela usa valor atual como âncora, sem curva histórica detalhada de CDI.",
+            "Histórico de proventos vindo de provider externo ainda precisa passar pelo Knowledge Engine antes de compor a série histórica.",
+            "Quando algum provider não entrega histórico, o ativo fica com preço atual como fallback para não quebrar a simulação.",
         ],
     }
 
@@ -175,12 +180,19 @@ def _record_backtest_lineage(
 
 def _first_real_history(engine: MarketDataEngine, request: MarketDataRequest):
     records = engine.collect(DATA_TYPE_PRICE_HISTORY, request, include_mock=False)
+    is_crypto = (request.asset_class or "").lower() in {"cripto", "crypto"} or (request.market or "").lower() == "crypto"
+    priority = PRICE_HISTORY_PROVIDER_PRIORITY["crypto" if is_crypto else "default"]
+    candidates = []
     for record in records:
-        if record.provider == "mock":
+        provider = (record.provider or "").lower()
+        if provider not in priority:
             continue
         prices = _extract_prices(record.payload.get("prices") or [])
         if prices:
-            return record, prices
+            candidates.append((priority.index(provider), -float(record.quality_score or 0), record, prices))
+    if candidates:
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        return candidates[0][2], candidates[0][3]
     return None, []
 
 

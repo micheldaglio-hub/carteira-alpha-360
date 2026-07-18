@@ -17,6 +17,11 @@ from app.services.market_data.v2.engine import MarketDataEngine
 from app.services.portfolio_aggregation import build_portfolio_snapshot
 from app.services.trading_desk_integration import get_trading_desk_summary
 
+PRICE_HISTORY_PRIORITY = {
+    "crypto": ["coingecko", "coinmarketcap"],
+    "default": ["yahoo_finance", "dados_mercado", "fmp", "twelvedata"],
+}
+
 
 def as_float(value: Decimal | float | int | None, digits: int = 2) -> float:
     if value is None:
@@ -207,7 +212,7 @@ def get_positions_with_month_performance(db: Session, user_id: str) -> list[dict
                 end_date=today,
                 interval="1day",
             )
-            record, prices = _first_price_history(engine, request)
+            record, prices = _first_price_history(engine, request, crypto=taxonomy.is_crypto)
             current_price = as_float(position.get("currentPrice"), 6)
             start_price = _month_start_price(prices, performance_start, current_price)
             rolling_30_start_price = _price_at_or_before(prices, rolling_30_start, current_price)
@@ -240,12 +245,21 @@ def get_positions_with_month_performance(db: Session, user_id: str) -> list[dict
     return sorted(positions, key=lambda item: item["currentValue"], reverse=True)
 
 
-def _first_price_history(engine: MarketDataEngine, request: MarketDataRequest):
+def _first_price_history(engine: MarketDataEngine, request: MarketDataRequest, *, crypto: bool = False):
     records = engine.collect(DATA_TYPE_PRICE_HISTORY, request, include_mock=False)
+    priority = PRICE_HISTORY_PRIORITY["crypto" if crypto else "default"]
+    candidates = []
     for record in records:
+        provider = (record.provider or "").lower()
+        if provider not in priority:
+            continue
         prices = _extract_price_rows(record.payload.get("prices") or [])
-        if prices:
-            return record, prices
+        if not prices:
+            continue
+        candidates.append((priority.index(provider), -float(record.quality_score or 0), record, prices))
+    if candidates:
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        return candidates[0][2], candidates[0][3]
     return None, []
 
 

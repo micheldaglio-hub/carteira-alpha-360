@@ -33,8 +33,10 @@ class ProviderManager:
         providers: list[MarketDataProviderV2] = []
         providers.append(BancoCentralProviderV2())
         providers.append(DadosMercadoProviderV2())
-        if configured == "brapi" or settings.brapi_token:
-            providers.append(BrapiMarketDataProviderV2())
+        # BRAPI also serves unauthenticated B3 quotes. Keep it active even
+        # when production has not configured a token, otherwise portfolio sync
+        # falls through to demo data for Brazilian assets.
+        providers.append(BrapiMarketDataProviderV2())
         providers.append(CoinMarketCapProviderV2())
         providers.append(FinancialModelingPrepProviderV2())
         providers.append(TwelveDataProviderV2())
