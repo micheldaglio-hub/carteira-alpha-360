@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     backend_cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     backend_cors_origin_regex: str = r"^https?://(localhost|127\.0\.0\.1|[A-Za-z0-9-]+(?:\.local)?|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$"
     seed_demo_data: bool = True
-    market_data_provider: str = "mock"
+    market_data_provider: str = "brapi"
     brapi_token: str = ""
     coinmarketcap_api_key: str = ""
     cvm_base_url: str = "https://dados.cvm.gov.br"

@@ -2,6 +2,7 @@
 
 ## 2026-07-18
 
+- Provider padrao de dados de mercado alterado de `mock` para `brapi`, mantendo o mock apenas como fallback explicito. Isso protege deploys online sem `MARKET_DATA_PROVIDER` configurado contra leitura demonstrativa como fonte principal.
 - Hotfix profundo de confiabilidade de cotacoes em producao: BRAPI passou a ficar ativo para B3 mesmo sem token configurado no Render, evitando queda para dados demonstrativos quando a variavel `MARKET_DATA_PROVIDER` nao estiver em `brapi`.
 - Sincronizacao de acoes deixou de restaurar preco suspeito pelo preco medio de compra; quando a cotacao direta falha, o sistema usa historico real priorizado antes de declarar ativo sem nova cotacao.
 - Sincronizacao de criptomoedas passou a aceitar apenas CoinMarketCap/CoinGecko para preco atual, bloqueando Twelve Data/mock como fonte de preco de cripto e impedindo valores genericos como `R$ 25,00` em FLR, BTC, ETH e SHIB.
