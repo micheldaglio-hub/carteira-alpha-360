@@ -2,6 +2,10 @@
 
 ## 2026-07-18
 
+- Hotfix de sincronizacao da carteira: o endpoint `/portfolio/sync-market` deixou de persistir dados `mock`/`fallback` como preco real, passou a ignorar renda fixa no caminho de cotacoes de mercado e encaminha criptos para o sincronizador especifico de cripto.
+- Adicionado reparo automatico para precos suspeitos de `R$ 25,00` ja gravados em ativos reais, restaurando o preco pelo livro de transacoes quando nao houver cotacao confiavel disponivel.
+- A tela Minha Carteira agora informa quantos precos suspeitos foram restaurados apos clicar em `Atualizar`.
+- Criados testes de seguranca para impedir que mock contamine a carteira, proteger renda fixa/CDI e garantir reparo de cripto dentro da sincronizacao geral.
 - Botao `Atualizar` da Minha Carteira agora sincroniza cotacoes de mercado via `/portfolio/sync-market` antes de recarregar a tela e recalcular o backtest, evitando comparar rentabilidade com precos antigos salvos no banco.
 - Sincronizacao de ativos passou a priorizar `quote` para preco atual e usar fundamentos para indicadores, reduzindo divergencias contra radar de corretora como ION/Itau.
 - Separada a rentabilidade de acoes em duas leituras: `mes atual` e `ultimos 30 dias`, evitando comparar o card da Carteira Alpha com a coluna `Variacao 30 dias` da corretora usando janelas diferentes.

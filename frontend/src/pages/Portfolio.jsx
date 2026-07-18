@@ -235,8 +235,9 @@ export default function Portfolio({ token }) {
     setError("");
     try {
       const result = await apiFetch("/portfolio/sync-market", { method: "POST", token });
+      const repaired = result.repaired?.length || 0;
       setStatus(
-        `Cotações sincronizadas: ${result.updated?.length || 0} ativo(s) atualizado(s), ${result.skipped?.length || 0} sem nova cotação.`
+        `Cotações sincronizadas: ${result.updated?.length || 0} ativo(s) atualizado(s), ${result.skipped?.length || 0} sem nova cotação${repaired ? `, ${repaired} preço(s) suspeito(s) restaurado(s)` : ""}.`
       );
       await load();
       await runBacktest(backtestForm);

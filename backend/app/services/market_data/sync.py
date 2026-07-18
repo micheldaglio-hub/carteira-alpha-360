@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.models import Asset, MarketSnapshot
+from app.models import Asset, MarketSnapshot, Transaction
+from app.services.asset_taxonomy import classify_position
 from app.services.data_lineage import record_data_evidence
+from app.services.fixed_income import is_fixed_income_class
 from app.services.market_data.v2.engine import MarketDataEngine
 from app.services.market_data.v2.contracts import (
     DATA_TYPE_FUNDAMENTALS,
@@ -16,6 +18,8 @@ from app.services.market_data.v2.contracts import (
 )
 from app.services.portfolio import get_positions
 
+
+UNTRUSTED_SYNC_PROVIDERS = {"mock", "fallback"}
 
 SNAPSHOT_FIELD_MAP = {
     "price": "price",
@@ -72,7 +76,6 @@ def _set_if_present(snapshot: MarketSnapshot, field: str, value: Decimal | None)
 
 
 def sync_asset_market_data(db: Session, asset: Asset, timeout: float = 6.0) -> bool:
-    settings = get_settings()
     request = MarketDataRequest(
         symbol=asset.ticker,
         asset_id=asset.id,
@@ -93,11 +96,8 @@ def sync_asset_market_data(db: Session, asset: Asset, timeout: float = 6.0) -> b
     except MarketDataUnavailable:
         fundamental_records = []
 
-    if not quote_records and not fundamental_records and settings.market_data_provider.lower() == "mock":
-        try:
-            fundamental_records = [engine.fetch(DATA_TYPE_FUNDAMENTALS, request)]
-        except MarketDataUnavailable:
-            fundamental_records = []
+    quote_records = _trusted_sync_records(quote_records)
+    fundamental_records = _trusted_sync_records(fundamental_records)
     records = [*quote_records, *fundamental_records]
     if not records:
         return False
@@ -158,6 +158,18 @@ def _record_market_evidence(db: Session, asset: Asset, data: dict, provider: str
         )
 
 
+def _trusted_sync_records(records: list[NormalizedMarketData]) -> list[NormalizedMarketData]:
+    """Keep portfolio sync from persisting demo/fallback data as real prices."""
+
+    trusted = []
+    for record in records:
+        provider = (record.provider or "").lower()
+        if provider in UNTRUSTED_SYNC_PROVIDERS:
+            continue
+        trusted.append(record)
+    return trusted
+
+
 def _merge_fundamental_records(records: list[NormalizedMarketData]) -> dict:
     merged: dict[str, float | str] = {"sources": [record.provider for record in records]}
     for field in SNAPSHOT_FIELD_MAP:
@@ -199,13 +211,117 @@ def sync_user_assets(db: Session, user_id: str) -> dict:
     positions = get_positions(db, user_id)
     updated: list[str] = []
     skipped: list[str] = []
+    repaired: list[str] = []
     for position in positions:
         asset = db.get(Asset, position["assetId"])
         if asset is None:
             continue
-        if sync_asset_market_data(db, asset, timeout=15.0):
+        taxonomy = classify_position(position, asset)
+        if taxonomy.is_fixed_income:
+            skipped.append(asset.ticker)
+            continue
+        if taxonomy.is_crypto:
+            if _sync_crypto_position(db, user_id, asset, position):
+                updated.append(asset.ticker)
+            else:
+                if _restore_suspicious_crypto_price(db, user_id, asset, position):
+                    repaired.append(asset.ticker)
+                skipped.append(asset.ticker)
+            continue
+
+        before_price = _asset_price(asset)
+        synced = sync_asset_market_data(db, asset, timeout=15.0)
+        if _restore_suspicious_market_mock_price(db, user_id, asset, position, previous_price=before_price):
+            repaired.append(asset.ticker)
+            skipped.append(asset.ticker)
+        elif synced:
             updated.append(asset.ticker)
         else:
             skipped.append(asset.ticker)
     db.commit()
-    return {"updated": updated, "skipped": skipped}
+    return {"updated": updated, "skipped": skipped, "repaired": repaired}
+
+
+def _sync_crypto_position(db: Session, user_id: str, asset: Asset, position: dict) -> bool:
+    from app.services.crypto import sync_crypto_asset
+
+    if sync_crypto_asset(db, asset):
+        return True
+    return False
+
+
+def _restore_suspicious_crypto_price(db: Session, user_id: str, asset: Asset, position: dict) -> bool:
+    from app.services.crypto import restore_suspicious_crypto_mock_price
+
+    return restore_suspicious_crypto_mock_price(db, user_id, asset, position)
+
+
+def _restore_suspicious_market_mock_price(
+    db: Session,
+    user_id: str,
+    asset: Asset,
+    position: dict,
+    *,
+    previous_price: Decimal,
+) -> bool:
+    """Undo a previously persisted generic mock price on real exchange assets."""
+
+    current_price = _asset_price(asset)
+    if not (Decimal("24.99") <= current_price <= Decimal("25.01")):
+        return False
+    if not (Decimal("24.99") <= previous_price <= Decimal("25.01")):
+        return False
+    if is_fixed_income_class(asset.asset_class) or (asset.asset_class or "").strip().lower() in {"cripto", "crypto"}:
+        return False
+    average_price = _decimal(position.get("averagePrice"))
+    if average_price is None or average_price <= 0:
+        return False
+    distance_from_average = abs((current_price / average_price) - Decimal("1")) if average_price else Decimal("0")
+    if distance_from_average < Decimal("0.20"):
+        return False
+    restored = _average_transaction_price(db, user_id, asset.id) or average_price
+    if restored <= 0:
+        return False
+    asset.last_price = restored
+    if asset.snapshot is None:
+        db.add(MarketSnapshot(asset_id=asset.id, price=restored, dividend_yield=0, payout=0))
+    else:
+        asset.snapshot.price = restored
+    return True
+
+
+def _average_transaction_price(db: Session, user_id: str, asset_id: str) -> Decimal | None:
+    transactions = (
+        db.execute(
+            select(Transaction)
+            .where(Transaction.user_id == user_id, Transaction.asset_id == asset_id)
+            .order_by(Transaction.date.asc(), Transaction.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+    quantity = Decimal("0")
+    cost = Decimal("0")
+    for transaction in transactions:
+        tx_type = (transaction.type or "").lower()
+        tx_quantity = _decimal(transaction.quantity) or Decimal("0")
+        tx_price = _decimal(transaction.price) or Decimal("0")
+        tx_fees = _decimal(transaction.fees) or Decimal("0")
+        if tx_quantity <= 0:
+            continue
+        if tx_type in {"buy", "compra"}:
+            quantity += tx_quantity
+            cost += tx_quantity * tx_price + tx_fees
+        elif tx_type in {"sell", "venda"} and quantity > 0:
+            sold_quantity = min(tx_quantity, quantity)
+            average_cost = cost / quantity if quantity else Decimal("0")
+            quantity -= sold_quantity
+            cost -= average_cost * sold_quantity
+    if quantity <= 0 or cost <= 0:
+        return None
+    return cost / quantity
+
+
+def _asset_price(asset: Asset) -> Decimal:
+    snapshot_price = asset.snapshot.price if asset.snapshot and asset.snapshot.price else None
+    return Decimal(snapshot_price or asset.last_price or 0)
