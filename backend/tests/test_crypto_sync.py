@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 import unittest
 from unittest.mock import patch
@@ -11,8 +11,9 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base
 from app.models import Asset, MarketSnapshot, Transaction, User
 from app.services.crypto import sync_crypto_asset, sync_user_crypto
-from app.services.market_data.v2.contracts import DATA_TYPE_QUOTE, MarketDataRequest, NormalizedMarketData
+from app.services.market_data.v2.contracts import DATA_TYPE_PRICE_HISTORY, DATA_TYPE_QUOTE, MarketDataRequest, NormalizedMarketData
 from app.services.market_data.v2.providers.coingecko import CoinGeckoProviderV2
+from app.services.portfolio import get_positions, get_positions_with_month_performance
 
 
 class CryptoSyncTests(unittest.TestCase):
@@ -229,6 +230,89 @@ class CryptoSyncTests(unittest.TestCase):
         self.assertEqual(quote.provider, "coingecko")
         self.assertAlmostEqual(quote.payload["price"], 0.000067, places=8)
         self.assertEqual(quote.payload["raw"]["provider_id"], "shiba-inu")
+
+    def test_crypto_position_payload_keeps_tiny_price_precision(self) -> None:
+        asset = Asset(
+            ticker="SHIB",
+            name="Shiba Inu",
+            asset_class="Cripto",
+            sector="Cripto",
+            segment="meme coin",
+            currency="BRL",
+            provider_symbol="SHIB",
+            last_price=Decimal("0.00002127"),
+        )
+        self.db.add(asset)
+        self.db.flush()
+        self.db.add(MarketSnapshot(asset_id=asset.id, price=Decimal("0.00002127"), dividend_yield=0, payout=0))
+        self.db.add(
+            Transaction(
+                user_id=self.user.id,
+                asset_id=asset.id,
+                type="buy",
+                date=date(2026, 7, 1),
+                quantity=Decimal("103.8533"),
+                price=Decimal("0.000067"),
+                fees=Decimal("0"),
+                broker="Binance",
+            )
+        )
+        self.db.commit()
+
+        [position] = get_positions(self.db, self.user.id)
+
+        self.assertGreater(position["currentPrice"], 0)
+        self.assertLess(position["currentPrice"], 0.0001)
+        self.assertEqual(position["averagePrice"], 0.000067)
+
+    def test_tiny_crypto_month_performance_uses_precise_current_value(self) -> None:
+        asset = Asset(
+            ticker="SHIB",
+            name="Shiba Inu",
+            asset_class="Cripto",
+            sector="Cripto",
+            segment="meme coin",
+            currency="BRL",
+            provider_symbol="SHIB",
+            last_price=Decimal("0.00002127"),
+        )
+        self.db.add(asset)
+        self.db.flush()
+        self.db.add(MarketSnapshot(asset_id=asset.id, price=Decimal("0.00002127"), dividend_yield=0, payout=0))
+        self.db.add(
+            Transaction(
+                user_id=self.user.id,
+                asset_id=asset.id,
+                type="buy",
+                date=date(2026, 7, 1),
+                quantity=Decimal("103.8533"),
+                price=Decimal("0.000067"),
+                fees=Decimal("0"),
+                broker="Binance",
+            )
+        )
+        self.db.commit()
+        today = date.today()
+        month_start_anchor = date(today.year, today.month, 1) - timedelta(days=1)
+        history = NormalizedMarketData(
+            data_type=DATA_TYPE_PRICE_HISTORY,
+            provider="coingecko",
+            source_symbol="SHIB",
+            currency="BRL",
+            payload={
+                "prices": [
+                    {"date": month_start_anchor.isoformat(), "close": 0.00002},
+                    {"date": today.isoformat(), "close": 0.00002127},
+                ]
+            },
+            quality_score=84,
+        )
+
+        with patch("app.services.portfolio.MarketDataEngine.collect", return_value=[history]):
+            [position] = get_positions_with_month_performance(self.db, self.user.id)
+
+        self.assertGreater(position["monthReturnPct"], -99)
+        self.assertGreater(position["monthReturnPct"], 0)
 
 
 if __name__ == "__main__":

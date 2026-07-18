@@ -141,6 +141,7 @@ def get_positions(db: Session, user_id: str) -> list[dict]:
         dy_on_avg = (
             proceeds_last_12m[asset_id] / invested_value * Decimal("100") if invested_value else Decimal("0")
         )
+        price_digits = 8 if (asset.asset_class or "").strip().lower() in {"cripto", "crypto"} else 2
         row = {
             "assetId": asset_id,
             "ticker": asset.ticker,
@@ -149,8 +150,8 @@ def get_positions(db: Session, user_id: str) -> list[dict]:
             "sector": asset.sector,
             "segment": asset.segment,
             "quantity": as_float(qty, 4),
-            "averagePrice": as_float(avg_price),
-            "currentPrice": as_float(price),
+            "averagePrice": as_float(avg_price, price_digits),
+            "currentPrice": as_float(price, price_digits),
             "investedValue": as_float(invested_value),
             "currentValue": as_float(current_value),
             "pnl": as_float(pnl),
@@ -219,7 +220,9 @@ def get_positions_with_month_performance(db: Session, user_id: str) -> list[dict
             quantity = as_float(position.get("quantity"), 6)
             start_value = quantity * start_price
             rolling_30_start_value = quantity * rolling_30_start_price
-            current_value = as_float(position.get("currentValue"))
+            # Use precise price * quantity for performance. Tiny crypto
+            # positions can be below one cent and round currentValue to 0.00.
+            current_value = quantity * current_price
             month_pnl = current_value - start_value
             rolling_30_pnl = current_value - rolling_30_start_value
             position["monthStartPrice"] = as_float(start_price, 6)
